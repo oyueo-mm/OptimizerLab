@@ -1,5 +1,6 @@
 import {OPTIMIZERS,LANDSCAPES,getOptimizer,getLandscape,simulate} from './engine.js';
 import {SurfaceRenderer} from './renderer.js';
+import {activePreviewEnd,previewFrame} from './preview.js';
 const $=s=>document.querySelector(s);
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number=n=>Number.isFinite(n)?Math.abs(n)>=100?n.toFixed(1):Math.abs(n)>=1?n.toFixed(3):n.toFixed(5):'—';
@@ -68,13 +69,16 @@ function destroyRenderers(){
 function mountPreview(){
   const canvases=[...document.querySelectorAll('[data-preview]')];
   if(!canvases.length)return;
+  const catalog=state.page==='catalog';
   observer=new IntersectionObserver(entries=>{for(const e of entries){const rec=renderers.find(r=>r.canvas===e.target);if(rec)rec.visible=e.isIntersecting;}},{rootMargin:'70px'});
-  for(const canvas of canvases){
+  for(const [index,canvas] of canvases.entries()){
     const id=canvas.dataset.preview,field=getLandscape(canvas.dataset.previewLand||'wavy'),a=getOptimizer(id);
-    const trajectory=simulate(id,field,field.start,{lr:Math.min(a.defaults.lr,field.lr*2),steps:100});
-    const renderer=new SurfaceRenderer(canvas,{mode:'2d',field,preview:true});
-    const rec={renderer,canvas,visible:false,preview:true,series:[{...trajectory,color:a.color}]};renderers.push(rec);
-    renderer.setFrame(rec.series,Math.min(trajectory.history.length-1,27));observer.observe(canvas);
+    const trajectory=simulate(id,field,field.start,{lr:Math.min(a.defaults.lr,field.lr*2),steps:catalog?120:100});
+    const end=catalog?activePreviewEnd(trajectory.history):trajectory.history.length-1;
+    const renderer=new SurfaceRenderer(canvas,{mode:'2d',field,preview:true,previewKind:catalog?'catalog':'home'});
+    if(catalog)renderer.setPreviewPath(trajectory.history.slice(0,end+1));
+    const rec={renderer,canvas,visible:false,preview:true,catalog,activeEnd:end,elapsed:(index%4)*0.13,series:[{...trajectory,color:a.color}]};renderers.push(rec);
+    renderer.setFrame(rec.series,catalog?(prefersReduced?end:0):Math.min(trajectory.history.length-1,27));observer.observe(canvas);
   }
 }
 function mountMain(){
@@ -163,8 +167,15 @@ function tick(now){
       redraw();
     }
     if(!prefersReduced&&now-lastPreview>45){
+      const elapsed=lastPreview?Math.min(.12,(now-lastPreview)/1000):0;
       lastPreview=now;previewTime+=Math.min(.12,dt);
-      let used=0;for(const rec of renderers){if(rec.preview&&rec.visible&&used<8){const len=rec.series[0].history.length-1;rec.renderer.setFrame(rec.series,(previewTime*10)%Math.max(1,len));used++;}}
+      let used=0;
+      for(const rec of renderers){
+        if(!rec.preview||!rec.visible||used>=8)continue;
+        if(rec.catalog){rec.elapsed+=elapsed;rec.renderer.setFrame(rec.series,previewFrame(rec.elapsed,rec.activeEnd));}
+        else{const len=rec.series[0].history.length-1;rec.renderer.setFrame(rec.series,(previewTime*10)%Math.max(1,len));}
+        used++;
+      }
     }
   }
   requestAnimationFrame(tick);
