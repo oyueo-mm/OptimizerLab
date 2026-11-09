@@ -124,7 +124,7 @@ document.addEventListener('click',e=>{
   if(b.dataset.open){chooseOptimizer(b.dataset.open);return;}
   if(b.hasAttribute('data-sidebar')){state.sidebar=!state.sidebar;render();return;}
   if(b.hasAttribute('data-mobile')){state.mobile=!state.mobile;render();return;}
-  if(b.dataset.mode){state.mode=b.dataset.mode;state.playing=false;render();return;}
+  if(b.dataset.mode){state.mode=b.dataset.mode;const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.setMode(state.mode);for(const btn of document.querySelectorAll('[data-mode]'))btn.classList.toggle('active',btn.dataset.mode===state.mode);const hint=$('.canvas-hint');if(hint)hint.textContent=state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대';return;}
   if(b.hasAttribute('data-play')){if(state.position>=maxStep())state.position=0;state.playing=!state.playing;redraw();return;}
   if(b.hasAttribute('data-reset')){state.playing=false;state.position=0;redraw();return;}
   if(b.hasAttribute('data-next')){state.playing=false;state.position=Math.min(maxStep(),Math.floor(state.position)+1);redraw();return;}
