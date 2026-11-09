@@ -9,7 +9,7 @@ const DEFAULT_COMP=['sgd','momentum','nesterov','adagrad','adam','adamw'];
 const MAX_COMPARE=6;
 const COMPARE_COLORS=['#2563eb','#ea8b35','#8b5cf6','#0891b2','#16a34a','#db2777'];
 const SETTINGS_KEYS=['optimizer','landscape','lr','momentum','beta1','beta2','weightDecay','steps','speed'];
-const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,settingsDraft:null,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP]};
+const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,settingsDraft:null,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP],compareDraft:null};
 const prefersReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let renderers=[],series=[],lastTime=0,lastPreview=0,previewTime=0,observer=null;
 const choice=(a,b,selected)=>'<option value="'+a+'"'+(a===selected?' selected':'')+'>'+safe(b)+'</option>';
@@ -85,9 +85,10 @@ function experiment(){
   return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras">'+metrics()+'</div>';
 }
 function compare(){
+  const draft=state.compareDraft||state.compare;
   const rows=series.map(s=>{const last=s.history.at(-1)||{};return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(last.loss)+'</td><td>'+(s.history.length-1)+'</td><td>'+({complete:'완료',converged:'수렴',diverged:'발산'}[s.status]||'—')+'</td></tr>';}).join('');
-  const choices=OPTIMIZERS.map(a=>'<button '+(!state.compare.includes(a.id)&&state.compare.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill '+(state.compare.includes(a.id)?'active':'')+'" data-compare="'+a.id+'"><span class="bullet" style="background:'+(state.compare.includes(a.id)?COMPARE_COLORS[state.compare.indexOf(a.id)]:a.color)+'"></span>'+a.name+(state.compare.includes(a.id)?' ✓':'')+'</button>').join('');
-  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+state.compare.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
+  const choices=OPTIMIZERS.map(a=>{const index=draft.indexOf(a.id),selected=index>=0;return '<button type="button" '+(!selected&&draft.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill '+(selected?'active':'')+'" data-compare="'+a.id+'" aria-pressed="'+selected+'"><span class="bullet" style="background:'+(selected?COMPARE_COLORS[index]:a.color)+'"></span><span class="compare-name">'+a.name+'</span><span class="compare-check">'+(selected?'✓':'')+'</span></button>';}).join('');
+  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+draft.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div><div class="compare-actions"><span class="compare-note">최대 '+MAX_COMPARE+'개 선택 · 적용 전까지 비교 결과 유지</span><button type="button" class="btn" data-compare-cancel>취소</button><button type="button" class="btn primary" data-compare-apply>적용</button></div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
 }
 function lineage(){
   const rows=[['sgd'],['momentum','adagrad','rmsprop'],['nesterov','adam','adadelta'],['nadam','adamw','adamax','amsgrad','lion']];
@@ -144,7 +145,7 @@ function updateMetrics(){
   drawLossChart();
 }
 function changeView(view){
-  state.page=view;state.mobile=false;state.settingsOpen=false;state.settingsDraft=null;state.playing=false;state.position=0;window.scrollTo({top:0,behavior:'instant'});render();
+  state.page=view;state.mobile=false;state.settingsOpen=false;state.settingsDraft=null;state.compareDraft=null;state.playing=false;state.position=0;window.scrollTo({top:0,behavior:'instant'});render();
 }
 function chooseOptimizer(id){
   state.settingsOpen=false;state.settingsDraft=null;state.optimizer=id;state.lr=getOptimizer(id).defaults.lr;state.page='detail';state.position=0;state.playing=false;render();
@@ -193,6 +194,40 @@ function applySettings(){
   if(changed)render();
   else setSettingsOpen(false);
 }
+function syncComparePicker(){
+  const draft=state.compareDraft||state.compare;
+  const summary=$('.compare-choices summary');
+  if(summary)summary.textContent='비교 알고리즘 선택 ('+draft.length+'/'+MAX_COMPARE+')';
+  for(const item of document.querySelectorAll('[data-compare]')){
+    const index=draft.indexOf(item.dataset.compare),selected=index>=0;
+    item.classList.toggle('active',selected);
+    item.disabled=!selected&&draft.length>=MAX_COMPARE;
+    item.setAttribute('aria-pressed',String(selected));
+    const marker=item.querySelector('.compare-check');if(marker)marker.textContent=selected?'✓':'';
+    const bullet=item.querySelector('.bullet');if(bullet)bullet.style.background=selected?COMPARE_COLORS[index]:getOptimizer(item.dataset.compare).color;
+  }
+}
+function chooseCompareDraft(id){
+  if(state.page!=='compare')return;
+  const draft=state.compareDraft??(state.compareDraft=[...state.compare]);
+  const index=draft.indexOf(id);
+  if(index>=0){if(draft.length<=1)return;draft.splice(index,1);}
+  else if(draft.length<MAX_COMPARE)draft.push(id);
+  syncComparePicker();
+}
+function cancelCompareDraft(){
+  state.compareDraft=null;
+  syncComparePicker();
+  const picker=$('.compare-choices');if(picker)picker.open=false;
+}
+function applyCompareDraft(){
+  if(state.page!=='compare')return;
+  const draft=state.compareDraft||state.compare;
+  const changed=draft.length!==state.compare.length||draft.some((id,i)=>id!==state.compare[i]);
+  state.compare=[...draft];state.compareDraft=null;
+  if(changed){render();window.scrollTo({top:0,behavior:'instant'});}
+  else cancelCompareDraft();
+}
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.nav){changeView(b.dataset.nav);return;}
@@ -212,12 +247,9 @@ document.addEventListener('click',e=>{
   if(b.hasAttribute('data-place-default')){state.start={...getLandscape(state.landscape).start};recompute();redraw();return;}
   if(b.dataset.camera){const rec=renderers.find(r=>!r.preview);if(rec){rec.renderer.yaw=.68;rec.renderer.pitch=.73;rec.renderer.zoom=1;rec.renderer.invalidate();rec.renderer.draw();}return;}
   if(b.dataset.filter){state.filter=b.dataset.filter;render();return;}
-  if(b.dataset.compare){
-    const id=b.dataset.compare,has=state.compare.includes(id);
-    if(has&&state.compare.length>1)state.compare=state.compare.filter(x=>x!==id);
-    else if(!has&&state.compare.length<MAX_COMPARE)state.compare.push(id);
-    render();return;
-  }
+  if(b.hasAttribute('data-compare-cancel')){cancelCompareDraft();return;}
+  if(b.hasAttribute('data-compare-apply')){applyCompareDraft();return;}
+  if(b.dataset.compare){chooseCompareDraft(b.dataset.compare);return;}
 });
 document.addEventListener('input',e=>{
   const t=e.target;
