@@ -90,3 +90,11 @@
   .workspace-stage .playbar button{min-width:20px}
   .workspace-extras{padding:10px 4px}
 }
+
+/* Draft settings are committed only through the pinned Apply action. */
+.settings-drawer{display:flex;flex-direction:column}
+.settings-drawer .settings-footer{position:sticky;bottom:-24px;z-index:3;background:#fff;border-top:1px solid var(--border);margin-top:14px;padding:13px 0 17px;justify-content:flex-end;box-shadow:0 -8px 14px #ffffffeb}
+.settings-footer .btn{min-width:76px}
+.compare-pill:disabled{opacity:.36;cursor:not-allowed;background:#f8fafc}
+.workspace-stage .legend{column-gap:13px;row-gap:4px;flex-wrap:wrap}
+@media(max-width:570px){.settings-drawer .settings-footer{bottom:-16px}}
