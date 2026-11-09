@@ -4,7 +4,7 @@ import {OPTIMIZERS,LANDSCAPES,getLandscape,gradient,simulate,sampleRange} from '
 const almost=(a,b,tol=1e-5)=>assert.ok(Math.abs(a-b)<tol,`${a} differs from ${b}`);
 const bowl=getLandscape('bowl'),start={x:1,y:-1};
 test('all registered optimizers and surfaces are finite at their starting points',()=>{
-  assert.equal(OPTIMIZERS.length,37);assert.equal(LANDSCAPES.length,9);
+  assert.equal(OPTIMIZERS.length,41);assert.equal(LANDSCAPES.length,9);
   for(const field of LANDSCAPES){const sample=sampleRange(field);assert.ok(Number.isFinite(sample.min)&&Number.isFinite(sample.max));assert.ok(sample.max>sample.min);}
   for(const opt of OPTIMIZERS){const sim=simulate(opt,bowl,start,{lr:opt.defaults.lr,steps:20});assert.ok(sim.history.length>=2&&sim.history.length<=21,opt.id);assert.ok(sim.status==='complete'||sim.status==='converged',opt.id);assert.ok(sim.history.every(p=>Number.isFinite(p.loss)&&Number.isFinite(p.x)&&Number.isFinite(p.y)),opt.id);}
 });
@@ -44,3 +44,10 @@ test('stochastic-free optimization is deterministic',()=>{
     assert.deepEqual(a.history,b.history,id);
   }
 });
+
+test('registered optimizer ids and descriptions are unique',()=>{assert.equal(new Set(OPTIMIZERS.map(x=>x.id)).size,OPTIMIZERS.length);assert.ok(OPTIMIZERS.every(x=>x.formula&&x.description&&x.defaults.lr>0));});
+test('newton converges on the quadratic bowl',()=>{const r=simulate('newton',bowl,start,{lr:1,steps:3});assert.ok(r.history[1].loss<1e-7,'Newton first update should solve a quadratic');});
+test('quasi-Newton and nonlinear CG reduce a convex quadratic with backtracking',()=>{for(const id of ['bfgs','lbfgs','nonlinear-cg']){const path=simulate(id,bowl,start,{lr:1,steps:20}).history;for(let i=1;i<path.length;i++)assert.ok(path[i].loss<=path[i-1].loss+1e-10,id+' should not raise loss in line-search mode');assert.ok(path.at(-1).loss<path[0].loss,id);}});
+test('RProp flips its update direction with gradient sign',()=>{const p=simulate('rprop',bowl,start,{lr:0.1,steps:1}).history[1];almost(p.x,0.9);almost(p.y,-0.9);});
+test('SGDW decays weights separately from momentum update',()=>{const sgdw=simulate('sgdw',bowl,start,{lr:0.1,steps:1,weightDecay:0.2,momentum:0}).history[1];const sgd=simulate('sgd',bowl,start,{lr:0.1,steps:1}).history[1];almost(sgdw.x-sgd.x,-0.02);almost(sgdw.y-sgd.y,0.02);});
+test('optimistic gradient descent doubles initial step when no previous gradient exists',()=>{const opt=simulate('optimistic',bowl,start,{lr:0.1,steps:1}).history[1];almost(opt.x,0.864);almost(opt.y,-0.672);});
