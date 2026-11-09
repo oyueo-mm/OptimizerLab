@@ -1,4 +1,5 @@
 import {sampleRange} from './engine.js';
+import {previewCamera} from './preview.js';
 const hexToRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 function palette(t){
   const stops=[[246,249,252],[215,231,244],[156,193,226],[85,141,191],[37,85,137],[20,52,91]];
@@ -9,7 +10,7 @@ const interpolate=(a,b,t)=>a+(b-a)*t;
 export class SurfaceRenderer{
   constructor(canvas,opts={}){
     this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});
-    this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;
+    this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
     this.yaw=0.68;this.pitch=0.73;this.zoom=1;
     this.onPlace=opts.onPlace;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
     this.range=sampleRange(this.field,30);this.cache=null;this.triangles=[];this.visible=true;
@@ -24,14 +25,15 @@ export class SurfaceRenderer{
     const dpr=Math.min(window.devicePixelRatio||1,this.preview?1.25:1.8);
     const pw=Math.round(this.w*dpr),ph=Math.round(this.h*dpr);
     if(this.canvas.width!==pw||this.canvas.height!==ph){this.canvas.width=pw;this.canvas.height=ph;}
-    this.dpr=dpr;this.invalidate();this.draw();
+    this.dpr=dpr;if(this.catalogPreview&&this.previewPath)this.previewFocus=previewCamera(this.previewPath,this.w,this.h);this.invalidate();this.draw();
   }
   setField(field){this.field=field;this.range=sampleRange(field,30);this.invalidate();this.draw();}
   setMode(mode){if(this.mode!==mode){this.mode=mode;this.invalidate();this.draw();}}
   setFrame(series,step){this.drawData=series||[];this.current=step||0;this.draw();}
   invalidate(){this.cache=null;}
+  setPreviewPath(history){if(!this.catalogPreview)return;this.previewPath=history;this.previewFocus=previewCamera(history,this.w,this.h);this.invalidate();this.draw();}
   heightAt(x,y){const t=(this.field.fn(x,y)-this.range.min)/(this.range.max-this.range.min||1);return Math.max(-0.4,Math.min(1.6,t));}
-  map2D(x,y){const r=this.field.range;const pad=this.preview?6:30;const s=Math.min((this.w-2*pad)/(2*r),(this.h-2*pad)/(2*r))*this.zoom;return {x:this.w/2+x*s,y:this.h/2-y*s};}
+  map2D(x,y){if(this.catalogPreview&&this.previewFocus){const c=this.previewFocus;return {x:this.w/2+(x-c.x)*c.scale,y:this.h/2-(y-c.y)*c.scale};}const r=this.field.range;const pad=this.preview?6:30;const s=Math.min((this.w-2*pad)/(2*r),(this.h-2*pad)/(2*r))*this.zoom;return {x:this.w/2+x*s,y:this.h/2-y*s};}
   project(x,y,z=this.heightAt(x,y)){
     const r=this.field.range,a=x/r,b=y/r;
     const ca=Math.cos(this.yaw),sa=Math.sin(this.yaw),c=a*ca-b*sa,d=a*sa+b*ca;
@@ -45,7 +47,24 @@ export class SurfaceRenderer{
     if(this.mode==='2d')this.draw2D(g);else this.draw3D(g);
     this.cache=c;
   }
+  drawCatalog2D(g){
+    const nx=Math.max(40,Math.round(this.w/4)),ny=Math.max(30,Math.round(this.h/4)),focus=this.previewFocus||{x:0,y:0,scale:Math.max(1,this.h/(2*this.field.range))};
+    const vals=[],w=this.w,h=this.h;let min=Infinity,max=-Infinity;
+    for(let j=0;j<=ny;j++){const row=[];for(let i=0;i<=nx;i++){const x=focus.x+(i*w/nx-w/2)/focus.scale,y=focus.y+(h/2-j*h/ny)/focus.scale,z=this.field.fn(x,y);row.push(z);min=Math.min(min,z);max=Math.max(max,z);}vals.push(row);}
+    const raster=document.createElement('canvas');raster.width=nx+1;raster.height=ny+1;const ctx=raster.getContext('2d'),img=ctx.createImageData(nx+1,ny+1),span=Math.max(1e-8,max-min);
+    for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){const t=Math.pow(Math.max(0,Math.min(1,(vals[j][i]-min)/span)),0.7),k=(j*(nx+1)+i)*4;img.data[k]=Math.round(238-112*t);img.data[k+1]=Math.round(245-76*t);img.data[k+2]=Math.round(252-43*t);img.data[k+3]=255;}
+    ctx.putImageData(img,0,0);g.imageSmoothingEnabled=true;g.drawImage(raster,0,0,w,h);
+    g.strokeStyle='rgba(255,255,255,.8)';g.lineWidth=1.15;
+    for(let levelIndex=1;levelIndex<10;levelIndex++){const level=min+span*levelIndex/10;g.beginPath();
+      for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+        const v=[vals[j][i],vals[j][i+1],vals[j+1][i+1],vals[j+1][i]],x=i*w/nx,y=j*h/ny,dx=w/nx,dy=h/ny,vertices=[[x,y],[x+dx,y],[x+dx,y+dy],[x,y+dy]],cuts=[];
+        for(let edge=0;edge<4;edge++){const next=(edge+1)%4;if((v[edge]<level)!==(v[next]<level)){const ratio=(level-v[edge])/(v[next]-v[edge]);cuts.push([interpolate(vertices[edge][0],vertices[next][0],ratio),interpolate(vertices[edge][1],vertices[next][1],ratio)]);}}
+        if(cuts.length>=2){g.moveTo(...cuts[0]);g.lineTo(...cuts[1]);if(cuts.length===4){g.moveTo(...cuts[2]);g.lineTo(...cuts[3]);}}
+      }g.stroke();
+    }
+  }
   draw2D(g){
+    if(this.catalogPreview){this.drawCatalog2D(g);return;}
     const r=this.field.range,pad=this.preview?5:30,scale=Math.min((this.w-2*pad)/(2*r),(this.h-2*pad)/(2*r))*this.zoom;
     const left=this.w/2-r*scale,top=this.h/2-r*scale,size=2*r*scale;
     const n=this.preview?44:110,b=this.range;
@@ -104,15 +123,15 @@ export class SurfaceRenderer{
       const entry=series[n],points=entry.history||[],col=entry.color||'#ed8731';if(!points.length)continue;
       const t=Math.max(0,Math.min(step,points.length-1)),whole=Math.floor(t),frac=t-whole;
       const now=whole<points.length-1?{x:interpolate(points[whole].x,points[whole+1].x,frac),y:interpolate(points[whole].y,points[whole+1].y,frac)}:points[whole];
-      g.save();g.strokeStyle=col;g.lineWidth=this.preview?2.1:3.2;g.lineJoin='round';g.lineCap='round';g.globalAlpha=.96;g.shadowColor=col;g.shadowBlur=this.preview?0:5;g.beginPath();
+      g.save();g.strokeStyle=col;g.lineWidth=this.catalogPreview?3.5:this.preview?2.1:3.2;g.lineJoin='round';g.lineCap='round';g.globalAlpha=.96;g.shadowColor=col;g.shadowBlur=this.catalogPreview?3:this.preview?0:5;g.beginPath();
       for(let j=0;j<=whole;j++){const p=this.toScreen(points[j]);if(j===0)g.moveTo(p.x,p.y);else g.lineTo(p.x,p.y);}
       if(frac>0){const pos=this.toScreen(now);g.lineTo(pos.x,pos.y);}
       g.stroke();g.shadowBlur=0;
-      const p=this.toScreen(now);const radius=this.preview?4.3:7.0;
+      const p=this.toScreen(now);const radius=this.catalogPreview?7:this.preview?4.3:7.0;
       const grad=g.createRadialGradient(p.x-radius*.32,p.y-radius*.36,0,p.x,p.y,radius*1.22);
       grad.addColorStop(0,'#ffffff');grad.addColorStop(.16,col);grad.addColorStop(1,'#1e293b');
       g.fillStyle=grad;g.beginPath();g.arc(p.x,p.y,radius,0,Math.PI*2);g.fill();
-      if(!this.preview){g.strokeStyle='#fff';g.lineWidth=1.4;g.stroke();}
+      if(!this.preview||this.catalogPreview){g.strokeStyle='#fff';g.lineWidth=this.catalogPreview?2.3:1.4;g.stroke();}if(this.catalogPreview){const first=this.toScreen(points[0]);g.beginPath();g.arc(first.x,first.y,3,0,Math.PI*2);g.fillStyle='#fff';g.fill();g.lineWidth=1.6;g.strokeStyle=col;g.stroke();}
       g.restore();
     }
   }
