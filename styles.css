@@ -17,3 +17,23 @@
 
 .loss-panel{border:1px solid var(--border);border-radius:15px;background:#fff;padding:15px 16px;margin-top:12px}.loss-panel-heading{font-size:12px;font-weight:700;color:#4d5e72;margin-bottom:6px}.loss-panel canvas{display:block;width:100%;height:132px}.visual-top .btn[data-vectors]{margin-left:auto;margin-right:2px}
 @media(max-width:570px){.loss-panel canvas{height:110px}.visual-top .btn[data-vectors]{margin-left:0}}
+
+/* Visualization-first workspace: make the canvas the primary surface. */
+.page:has(.work-grid){max-width:none;padding:24px clamp(14px,2.4vw,34px) 45px}
+.page:has(.work-grid) .page-header{margin-bottom:17px}
+.work-grid{display:block;min-width:0}
+.work-grid>div:first-child{min-width:0;width:100%}
+.work-grid .canvas-wrap{height:clamp(510px,72dvh,900px);margin:0 12px;border-radius:12px}
+.work-grid .visual-top{padding:13px 16px 12px}
+.work-grid .playbar{margin-top:9px}
+.work-grid .visual-panel{width:100%}
+.work-grid .settings-toggle{font-weight:700}
+.work-grid .canvas-wrap:fullscreen{height:100dvh;width:100vw;margin:0;border-radius:0;background:#f8fbfe}
+.work-grid .canvas-wrap:fullscreen canvas{width:100%;height:100%}
+.settings-overlay[hidden]{display:none!important}
+.settings-overlay{position:fixed;inset:0;z-index:65}
+.settings-backdrop{position:absolute;inset:0;width:100%;height:100%;background:rgba(20,37,57,.16);border:0;border-radius:0;cursor:default}
+.settings-drawer{position:absolute;right:20px;top:20px;bottom:20px;width:min(360px,calc(100vw - 40px));margin:0;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 18px 65px rgba(18,37,62,.17);padding:20px 21px 24px;z-index:1}
+.settings-drawer .panel-heading{position:sticky;top:-20px;z-index:2;background:#fff;padding:6px 0 16px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+@media(max-width:880px){.page:has(.work-grid){padding:18px 15px 34px}.work-grid .canvas-wrap{height:clamp(410px,66dvh,760px);margin:0 8px}.settings-drawer{right:10px;top:10px;bottom:10px;width:min(360px,calc(100vw - 20px))}}
+@media(max-width:570px){.page:has(.work-grid){padding:15px 9px 30px}.work-grid .canvas-wrap{height:clamp(340px,58dvh,600px);margin:0 6px}.work-grid .visual-top{gap:7px;padding:10px}.work-grid .visual-top .settings-toggle{margin-left:auto}.settings-drawer{padding:16px 18px}.settings-drawer .panel-heading{top:-16px}}
