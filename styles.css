@@ -37,3 +37,56 @@
 .settings-drawer .panel-heading{position:sticky;top:-20px;z-index:2;background:#fff;padding:6px 0 16px;margin-bottom:16px;border-bottom:1px solid var(--border)}
 @media(max-width:880px){.page:has(.work-grid){padding:18px 15px 34px}.work-grid .canvas-wrap{height:clamp(410px,66dvh,760px);margin:0 8px}.settings-drawer{right:10px;top:10px;bottom:10px;width:min(360px,calc(100vw - 20px))}}
 @media(max-width:570px){.page:has(.work-grid){padding:15px 9px 30px}.work-grid .canvas-wrap{height:clamp(340px,58dvh,600px);margin:0 6px}.work-grid .visual-top{gap:7px;padding:10px}.work-grid .visual-top .settings-toggle{margin-left:auto}.settings-drawer{padding:16px 18px}.settings-drawer .panel-heading{top:-16px}}
+
+/* One-screen simulator workspace: only one compact heading, no wasted top bar. */
+.page.workspace-page{max-width:none;padding:8px clamp(8px,1.1vw,18px) 30px}
+.workspace-stage{height:calc(100dvh - 16px);min-height:440px;display:flex;flex-direction:column}
+.workspace-stage .work-grid{display:block;flex:1;min-height:0}
+.workspace-stage .work-grid>div:first-child{height:100%;min-height:0}
+.workspace-stage .visual-panel{height:100%;min-height:0;display:flex;flex-direction:column;border-radius:12px}
+.workspace-stage .visual-top{flex:none;display:flex;align-items:center;gap:10px;min-height:54px;padding:7px 12px;border-bottom:1px solid #edf1f5}
+.workspace-stage .workspace-heading{display:flex;align-items:baseline;gap:12px;min-width:0;flex:1;overflow:hidden;white-space:nowrap}
+.workspace-stage .visual-title{font-size:15px;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.workspace-stage .visual-landscape{font-size:11px;font-weight:500;color:#95a4b5;white-space:nowrap;flex-shrink:0}
+.workspace-stage .workspace-actions{display:flex;align-items:center;gap:6px;flex:none}
+.workspace-stage .visual-top .btn[data-vectors]{margin:0}
+.workspace-stage .toggle{padding:2px}
+.workspace-stage .toggle button{padding:7px 11px}
+.workspace-stage .canvas-wrap{flex:1;min-height:0;height:auto;margin:0 7px;border-radius:8px}
+.workspace-stage .canvas-wrap .canvas-corner{bottom:10px;right:9px}
+.workspace-stage .legend[hidden]{display:none}
+.workspace-stage .legend{margin:0;padding:5px 14px 0;min-height:24px;flex:none}
+.workspace-stage .playbar{flex:none;margin-top:0;padding:9px 14px;border-top:1px solid #eff3f7;min-height:59px}
+.workspace-stage .playbar .steps{font-size:11px}
+.workspace-stage .workspace-mobile{display:none}
+.workspace-extras{padding:14px 2px 28px;max-width:1500px;margin:auto}
+.workspace-extras .metrics{margin-top:0}
+.workspace-extras .info-panel{margin-top:12px}
+.compare-choices{border:1px solid var(--border);border-radius:12px;margin-bottom:14px;background:#fff}
+.compare-choices summary{cursor:pointer;padding:14px 16px;font-size:13px;font-weight:650}
+.compare-choices .compare-selection{margin:0;padding:4px 16px 16px}
+.page.workspace-page .workspace-stage .canvas-wrap:fullscreen{height:100dvh;min-height:100dvh;width:100vw;margin:0;border-radius:0}
+@media(max-width:880px){
+  .page.workspace-page{padding:6px 7px 22px}
+  .workspace-stage{height:calc(100dvh - 12px);min-height:430px}
+  .workspace-stage .workspace-mobile{display:inline-flex;padding:7px}
+  .workspace-stage .visual-top{gap:6px}
+  .workspace-stage .workspace-heading{gap:7px}
+  .workspace-stage .workspace-actions{gap:3px}
+  .workspace-stage .workspace-compare{display:none}
+}
+@media(max-width:570px){
+  .page.workspace-page{padding:4px 5px 20px}
+  .workspace-stage{height:calc(100dvh - 8px);min-height:400px}
+  .workspace-stage .visual-top{min-height:49px;padding:6px;gap:4px}
+  .workspace-stage .visual-title{font-size:13px}
+  .workspace-stage .visual-landscape{display:none}
+  .workspace-stage .workspace-back{padding:6px;font-size:10px}
+  .workspace-stage .workspace-actions .btn[data-vectors]{display:none}
+  .workspace-stage .workspace-actions .btn[data-settings-toggle]{padding:7px}
+  .workspace-stage .toggle button{padding:6px 9px}
+  .workspace-stage .canvas-wrap{margin:0 3px}
+  .workspace-stage .playbar{padding:8px 7px;gap:4px;min-height:51px}
+  .workspace-stage .playbar button{min-width:20px}
+  .workspace-extras{padding:10px 4px}
+}
