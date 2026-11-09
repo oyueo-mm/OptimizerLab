@@ -1,4 +1,5 @@
 import {EXTRA_OPTIMIZERS,stepExtra} from './advanced.js';
+import {SECOND_ORDER_OPTIMIZERS,stepSecondOrder} from './second-order.js';
 export const OPTIMIZERS = [
   { id:'sgd', name:'SGD', family:'기본 경사하강법', year:1951, color:'#2563eb', description:'현재 기울기의 반대 방향으로 일정한 학습률만큼 이동합니다.', formula:'θₜ = θₜ₋₁ − ηgₜ', defaults:{lr:0.055} },
   { id:'momentum', name:'SGD Momentum', family:'모멘텀', year:1964, color:'#ea8b35', description:'이전 기울기의 이동 방향을 누적해 진동을 줄이고 가속합니다.', formula:'vₜ = μvₜ₋₁ + gₜ  ·  θₜ = θₜ₋₁ − ηvₜ', defaults:{lr:0.025} },
@@ -13,7 +14,7 @@ export const OPTIMIZERS = [
   { id:'adamax', name:'Adamax', family:'Adam 계열', year:2014, color:'#8b5cf6', description:'2차 모멘트 대신 지수 가중 최대 절댓값으로 정규화합니다.', formula:'uₜ = max(β₂uₜ₋₁, |gₜ|)  ·  Δθ = −ηm̂ₜ/(uₜ+ε)', defaults:{lr:0.08} },
   { id:'lion', name:'Lion', family:'부호 기반', year:2023, color:'#dc2626', description:'모멘텀 조합의 부호로만 방향을 결정하고 분리된 가중치 감쇠를 사용합니다.', formula:'cₜ = β₁mₜ₋₁ + (1−β₁)gₜ  ·  θₜ = (1−ηλ)θₜ₋₁ − ηsign(cₜ)', defaults:{lr:0.018} }
 ];
-OPTIMIZERS.push(...EXTRA_OPTIMIZERS);
+OPTIMIZERS.push(...EXTRA_OPTIMIZERS,...SECOND_ORDER_OPTIMIZERS);
 export const LANDSCAPES = [
   {id:'wavy',name:'물결 계곡',subtitle:'울퉁불퉁한 다중 계곡',range:3.2,start:{x:-2.25,y:1.8},lr:0.045,fn:(x,y)=>0.18*(x*x+y*y)+0.50*Math.sin(2.6*x)*Math.cos(2.3*y)+0.26*Math.sin(3.1*x+1.3*y)+1.0},
   {id:'bowl',name:'볼록 함수',subtitle:'단일 전역 최솟값',range:3.2,start:{x:-2.35,y:1.9},lr:0.12,fn:(x,y)=>0.34*x*x+0.82*y*y},
@@ -38,10 +39,11 @@ export function simulate(algorithm,landscape,start,options={}){
   const p=[Number(start.x),Number(start.y)],m=[0,0],v=[0,0],u=[0,0],vmax=[0,0],deltaV=[0,0];
   const history=[{x:p[0],y:p[1],loss:f(...p),norm:Math.hypot(...gradient(f,...p)),step:0,dx:0,dy:0}];
   let status='complete';
-  const isAdvanced=EXTRA_OPTIMIZERS.some(item=>item.id===id),advancedState={};
+  const isAdvanced=EXTRA_OPTIMIZERS.some(item=>item.id===id),isSecondOrder=SECOND_ORDER_OPTIMIZERS.some(item=>item.id===id),advancedState={};
   for(let t=1;t<=steps;t++){
     const g=gradient(f,...p),before=[...p],norm=Math.hypot(...g);
     if(isAdvanced)stepExtra(id,p,g,t,{lr,mu,b1,b2,wd,eps},advancedState);
+    else if(isSecondOrder)stepSecondOrder(id,p,g,t,{fn:f,lr},advancedState);
     else for(let i=0;i<2;i++){
       const gi=g[i];
       if(id==='sgd'){p[i]-=lr*gi;}
