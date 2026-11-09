@@ -171,7 +171,7 @@ function tick(now){
       lastPreview=now;previewTime+=Math.min(.12,dt);
       let used=0;
       for(const rec of renderers){
-        if(!rec.preview||!rec.visible||used>=8)continue;
+        if(!rec.preview||!rec.visible||used>=(rec.catalog?20:8))continue;
         if(rec.catalog){rec.elapsed+=elapsed;rec.renderer.setFrame(rec.series,previewFrame(rec.elapsed,rec.activeEnd));}
         else{const len=rec.series[0].history.length-1;rec.renderer.setFrame(rec.series,(previewTime*10)%Math.max(1,len));}
         used++;
