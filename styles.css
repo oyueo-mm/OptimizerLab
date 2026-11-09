@@ -14,3 +14,6 @@
 /* Home uses its own independent viewport; keep the mobile navigation available. */
 .home-mobile-menu{display:none}.page:has(.home){min-height:100vh;display:flex;align-items:center}.page:has(.home) .home{width:100%}.catalog-card .catalog-name{margin-top:10px;margin-bottom:2px}.catalog-card .catalog-category{display:none}
 @media(max-width:880px){.page:has(.home){min-height:100vh;display:block;padding-top:72px}.home-mobile-menu{display:inline-flex;position:absolute;top:14px;right:14px;z-index:5}.page:has(.home) .home{padding-top:5vh}}
+
+.loss-panel{border:1px solid var(--border);border-radius:15px;background:#fff;padding:15px 16px;margin-top:12px}.loss-panel-heading{font-size:12px;font-weight:700;color:#4d5e72;margin-bottom:6px}.loss-panel canvas{display:block;width:100%;height:132px}.visual-top .btn[data-vectors]{margin-left:auto;margin-right:2px}
+@media(max-width:570px){.loss-panel canvas{height:110px}.visual-top .btn[data-vectors]{margin-left:0}}
