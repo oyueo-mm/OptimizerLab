@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 test('the application boots into the four-card home without a browser dependency',async()=>{
   const root={innerHTML:''};
-  globalThis.window={matchMedia:()=>({matches:true})};
+  globalThis.window={matchMedia:()=>({matches:true}),addEventListener:()=>{}};
   globalThis.document={title:'',querySelector:s=>s==='#app'?root:null,querySelectorAll:()=>[],addEventListener:()=>{}};
   globalThis.requestAnimationFrame=()=>0;
   await import('../src/app.js');
