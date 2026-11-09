@@ -1,16 +1,16 @@
-import {sampleRange} from './engine.js';
+import {sampleRange,gradient} from './engine.js';
 import {previewCamera} from './preview.js';
 const hexToRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
-function palette(t){
+function palette(t,brightness=1){
   const stops=[[246,249,252],[215,231,244],[156,193,226],[85,141,191],[37,85,137],[20,52,91]];
   const a=Math.max(0,Math.min(0.999,t))*(stops.length-1),i=Math.floor(a),w=a-i;
-  return 'rgb('+stops[i].map((v,k)=>Math.round(v*(1-w)+stops[i+1][k]*w)).join(',')+')';
+  return 'rgb('+stops[i].map((v,k)=>Math.round(Math.max(0,Math.min(255,(v*(1-w)+stops[i+1][k]*w)*brightness)))).join(',')+')';
 }
 const interpolate=(a,b,t)=>a+(b-a)*t;
 export class SurfaceRenderer{
   constructor(canvas,opts={}){
     this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});
-    this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
+    this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.showVectors=false;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
     this.yaw=0.68;this.pitch=0.73;this.zoom=1;
     this.onPlace=opts.onPlace;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
     this.range=sampleRange(this.field,30);this.cache=null;this.triangles=[];this.visible=true;
@@ -29,6 +29,7 @@ export class SurfaceRenderer{
   }
   setField(field){this.field=field;this.range=sampleRange(field,30);this.invalidate();this.draw();}
   setMode(mode){if(this.mode!==mode){this.mode=mode;this.invalidate();this.draw();}}
+  setVectors(visible){this.showVectors=!!visible;this.draw();}
   setFrame(series,step){this.drawData=series||[];this.current=step||0;this.draw();}
   invalidate(){this.cache=null;}
   setPreviewPath(history){if(!this.catalogPreview)return;this.previewPath=history;this.previewFocus=previewCamera(history,this.w,this.h);this.invalidate();this.draw();}
@@ -95,24 +96,34 @@ export class SurfaceRenderer{
     g.restore();
   }
   draw3D(g){
-    const N=this.preview?25:44,r=this.field.range,vertices=[];
+    const N=this.preview?25:52,r=this.field.range,vertices=[];
     for(let j=0;j<=N;j++){
       const row=[];for(let i=0;i<=N;i++){const x=-r+2*r*i/N,y=-r+2*r*j/N,z=this.heightAt(x,y);row.push({...this.project(x,y,z),wx:x,wy:y,z});}vertices.push(row);
     }
     const cells=[];this.triangles=[];
+    const step=2*r/N;
     for(let j=0;j<N;j++)for(let i=0;i<N;i++){
       const a=vertices[j][i],b=vertices[j][i+1],c=vertices[j+1][i+1],d=vertices[j+1][i];
       const depth=(a.depth+b.depth+c.depth+d.depth)/4,z=(a.z+b.z+c.z+d.z)/4;
-      cells.push({v:[a,b,c,d],depth,z});
+      const dzdx=((b.z-a.z)+(c.z-d.z))/(2*step),dzdy=((d.z-a.z)+(c.z-b.z))/(2*step);
+      const nx=-dzdx*1.8,ny=-dzdy*1.8,nz=1;
+      const lambert=(nx*(-.5)+ny*(-.55)+nz*.8)/Math.sqrt((nx*nx+ny*ny+nz*nz)*(.5*.5+.55*.55+.8*.8));
+      const brightness=Math.max(.65,Math.min(1.2,.83+.36*lambert));
+      cells.push({v:[a,b,c,d],depth,z,brightness});
       this.triangles.push([a,b,c],[a,c,d]);
     }
     cells.sort((a,b)=>a.depth-b.depth);
     g.lineJoin='round';
     for(const cell of cells){
-      g.beginPath();g.moveTo(cell.v[0].x,cell.v[0].y);for(let i=1;i<4;i++)g.lineTo(cell.v[i].x,cell.v[i].y);g.closePath();g.fillStyle=palette(cell.z);g.fill();
-      g.strokeStyle='rgba(255,255,255,.25)';g.lineWidth=this.preview?0.30:0.47;g.stroke();
+      g.beginPath();g.moveTo(cell.v[0].x,cell.v[0].y);for(let i=1;i<4;i++)g.lineTo(cell.v[i].x,cell.v[i].y);g.closePath();
+      g.fillStyle=palette(cell.z,cell.brightness);g.fill();
+      g.strokeStyle='rgba(240,248,255,.11)';g.lineWidth=this.preview?.18:.3;g.stroke();
     }
-    if(!this.preview){g.fillStyle='#718096';g.font='11px system-ui';g.fillText('높이 = 손실값',12,this.h-13);}
+    if(!this.preview){
+      g.save();g.font='11px system-ui';g.fillStyle='rgba(51,78,108,.72)';
+      const xp=this.project(r,-r,0),yp=this.project(-r,r,0);g.fillText('θ₁',Math.min(this.w-25,Math.max(8,xp.x)),Math.min(this.h-10,Math.max(12,xp.y)));g.fillText('θ₂',Math.min(this.w-25,Math.max(8,yp.x)),Math.min(this.h-10,Math.max(12,yp.y)));
+      g.restore();
+    }
   }
   toScreen(point){return this.mode==='2d'?this.map2D(point.x,point.y):this.project(point.x,point.y);}
   draw(series=this.drawData,step=this.current){
@@ -127,6 +138,21 @@ export class SurfaceRenderer{
       for(let j=0;j<=whole;j++){const p=this.toScreen(points[j]);if(j===0)g.moveTo(p.x,p.y);else g.lineTo(p.x,p.y);}
       if(frac>0){const pos=this.toScreen(now);g.lineTo(pos.x,pos.y);}
       g.stroke();g.shadowBlur=0;
+      if(this.showVectors&&!this.preview){
+        const gradVec=gradient(this.field.fn,now.x,now.y),mag=Math.hypot(...gradVec);
+        const future=points[Math.min(points.length-1,whole+1)],update=[future.x-now.x,future.y-now.y],umag=Math.hypot(...update);
+        const origin=this.toScreen(now);
+        const arrow=(vec,length,color)=>{
+          const n=Math.hypot(...vec);if(n<1e-9)return;
+          const dest=this.toScreen({x:now.x+vec[0]/n*length,y:now.y+vec[1]/n*length});
+          const vx=dest.x-origin.x,vy=dest.y-origin.y,d=Math.hypot(vx,vy);if(d<3)return;
+          const ux=vx/d,uy=vy/d;
+          g.beginPath();g.moveTo(origin.x,origin.y);g.lineTo(dest.x,dest.y);g.moveTo(dest.x,dest.y);g.lineTo(dest.x-9*ux-4*uy,dest.y-9*uy+4*ux);g.moveTo(dest.x,dest.y);g.lineTo(dest.x-9*ux+4*uy,dest.y-9*uy-4*ux);
+          g.strokeStyle=color;g.lineWidth=2;g.shadowBlur=0;g.stroke();
+        };
+        if(mag>1e-9)arrow([-gradVec[0],-gradVec[1]],this.field.range*.23,'#378ada');
+        if(umag>1e-9)arrow(update,this.field.range*.23,'#ea9237');
+      }
       const p=this.toScreen(now);const radius=this.catalogPreview?7:this.preview?4.3:7.0;
       const grad=g.createRadialGradient(p.x-radius*.32,p.y-radius*.36,0,p.x,p.y,radius*1.22);
       grad.addColorStop(0,'#ffffff');grad.addColorStop(.16,col);grad.addColorStop(1,'#1e293b');
