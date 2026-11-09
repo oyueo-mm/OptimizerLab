@@ -4,7 +4,7 @@ import {OPTIMIZERS,LANDSCAPES,getLandscape,gradient,simulate,sampleRange} from '
 const almost=(a,b,tol=1e-5)=>assert.ok(Math.abs(a-b)<tol,`${a} differs from ${b}`);
 const bowl=getLandscape('bowl'),start={x:1,y:-1};
 test('all registered optimizers and surfaces are finite at their starting points',()=>{
-  assert.equal(OPTIMIZERS.length,12);assert.equal(LANDSCAPES.length,9);
+  assert.equal(OPTIMIZERS.length,37);assert.equal(LANDSCAPES.length,9);
   for(const field of LANDSCAPES){const sample=sampleRange(field);assert.ok(Number.isFinite(sample.min)&&Number.isFinite(sample.max));assert.ok(sample.max>sample.min);}
   for(const opt of OPTIMIZERS){const sim=simulate(opt,bowl,start,{lr:opt.defaults.lr,steps:20});assert.ok(sim.history.length>=2&&sim.history.length<=21,opt.id);assert.ok(sim.status==='complete'||sim.status==='converged',opt.id);assert.ok(sim.history.every(p=>Number.isFinite(p.loss)&&Number.isFinite(p.x)&&Number.isFinite(p.y)),opt.id);}
 });
