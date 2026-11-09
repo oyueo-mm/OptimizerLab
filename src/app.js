@@ -73,16 +73,22 @@ function mountPreview(){
   const canvases=[...document.querySelectorAll('[data-preview]')];
   if(!canvases.length)return;
   const catalog=state.page==='catalog';
-  observer=new IntersectionObserver(entries=>{for(const e of entries){const rec=renderers.find(r=>r.canvas===e.target);if(rec)rec.visible=e.isIntersecting;}},{rootMargin:'70px'});
-  for(const [index,canvas] of canvases.entries()){
-    const id=canvas.dataset.preview,field=getLandscape(canvas.dataset.previewLand||'wavy'),a=getOptimizer(id);
-    const trajectory=simulate(id,field,field.start,{lr:Math.min(a.defaults.lr,field.lr*2),steps:catalog?120:100});
+  function activate(canvas){
+    let rec=renderers.find(r=>r.canvas===canvas);
+    if(rec){rec.visible=true;return;}
+    const id=canvas.dataset.preview,field=getLandscape(canvas.dataset.previewLand||'wavy'),algo=getOptimizer(id);
+    const trajectory=simulate(id,field,field.start,{lr:Math.min(algo.defaults.lr,field.lr*2),steps:catalog?120:100});
     const end=catalog?activePreviewEnd(trajectory.history):trajectory.history.length-1;
     const renderer=new SurfaceRenderer(canvas,{mode:'2d',field,preview:true,previewKind:catalog?'catalog':'home'});
     if(catalog)renderer.setPreviewPath(trajectory.history.slice(0,end+1));
-    const rec={renderer,canvas,visible:false,preview:true,catalog,activeEnd:end,elapsed:(index%4)*0.13,series:[{...trajectory,color:a.color}]};renderers.push(rec);
-    renderer.setFrame(rec.series,catalog?(prefersReduced?end:0):Math.min(trajectory.history.length-1,27));observer.observe(canvas);
+    rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,series:[{...trajectory,color:algo.color}]};
+    renderers.push(rec);
+    renderer.setFrame(rec.series,catalog?(prefersReduced?end:0):Math.min(trajectory.history.length-1,27));
   }
+  observer=new IntersectionObserver(entries=>{
+    for(const e of entries){if(e.isIntersecting)activate(e.target);else{const rec=renderers.find(r=>r.canvas===e.target);if(rec)rec.visible=false;}}
+  },{rootMargin:'80px',threshold:0.01});
+  for(const canvas of canvases)observer.observe(canvas);
 }
 function mountMain(){
   const canvas=$('#main-canvas');if(!canvas)return;
