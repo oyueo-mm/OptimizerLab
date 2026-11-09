@@ -7,6 +7,7 @@ test('the application boots into the four-card home without a browser dependency
   globalThis.requestAnimationFrame=()=>0;
   await import('../src/app.js');
   assert.match(root.innerHTML,/OptimizerLab/);
+  assert.doesNotMatch(root.innerHTML,/EXPLORE|12 optimizers|Optimization, visualized|공을 놓고, 움직임을 관찰하세요/);
   assert.match(root.innerHTML,/data-preview="sgd"/);
   assert.match(root.innerHTML,/data-preview="momentum"/);
   assert.match(root.innerHTML,/data-preview="adamw"/);
