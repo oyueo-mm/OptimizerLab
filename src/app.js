@@ -5,8 +5,11 @@ const $=s=>document.querySelector(s);
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number=n=>Number.isFinite(n)?Math.abs(n)>=100?n.toFixed(1):Math.abs(n)>=1?n.toFixed(3):n.toFixed(5):'—';
 const navItems=[['home','⌂','홈'],['catalog','▦','도감'],['experiment','◉','실험실'],['compare','◫','비교'],['lineage','⌁','계보']];
-const DEFAULT_COMP=['sgd','momentum','adam','adamw'];
-const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP]};
+const DEFAULT_COMP=['sgd','momentum','nesterov','adagrad','adam','adamw'];
+const MAX_COMPARE=6;
+const COMPARE_COLORS=['#2563eb','#ea8b35','#8b5cf6','#0891b2','#16a34a','#db2777'];
+const SETTINGS_KEYS=['optimizer','landscape','lr','momentum','beta1','beta2','weightDecay','steps','speed'];
+const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,settingsDraft:null,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP]};
 const prefersReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let renderers=[],series=[],lastTime=0,lastPreview=0,previewTime=0,observer=null;
 const choice=(a,b,selected)=>'<option value="'+a+'"'+(a===selected?' selected':'')+'>'+safe(b)+'</option>';
@@ -15,7 +18,7 @@ function recompute(){
   const field=getLandscape(state.landscape);
   series=(state.page==='compare'?state.compare:[state.optimizer]).map(id=>{
     const algo=getOptimizer(id),lr=state.page==='compare'?Math.min(algo.defaults.lr,['sgd','momentum','nesterov'].includes(id)?Math.max(0.008,field.lr):Infinity):state.lr;
-    return {...simulate(id,field,state.start,getOptions({lr})),color:algo.color,name:algo.name};
+    return {...simulate(id,field,state.start,getOptions({lr})),color:state.page==='compare'?COMPARE_COLORS[state.compare.indexOf(id)%MAX_COMPARE]:algo.color,name:algo.name};
   });
   state.position=0;state.playing=false;
 }
@@ -50,7 +53,8 @@ function visual(){
   return '<section class="visual-panel"><div class="visual-top">'+menu+back+'<div class="workspace-heading"><span class="visual-title">'+safe(title)+'</span><span class="visual-landscape">'+safe(field.name)+'</span></div><div class="workspace-actions">'+compare+'<button class="btn tiny" data-vectors title="기울기 및 업데이트 방향 보기" aria-pressed="'+state.vectors+'">벡터'+(state.vectors?' ✓':'')+'</button><button class="btn tiny settings-toggle" data-settings-toggle aria-controls="settings-overlay" aria-expanded="'+state.settingsOpen+'" title="시뮬레이션 설정 열기">⚙ 설정</button><div class="toggle" role="group" aria-label="시각화 모드"><button data-mode="2d" class="'+(state.mode==='2d'?'active':'')+'">2D</button><button data-mode="3d" class="'+(state.mode==='3d'?'active':'')+'">3D</button></div></div></div><div class="canvas-wrap"><canvas id="main-canvas" title="'+(state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대')+'" aria-label="시작점을 클릭으로 배치하는 최적화 손실 지형"></canvas><div class="canvas-corner"><button class="floating-button" data-fullscreen title="캔버스 전체 화면" aria-label="캔버스 전체 화면">⛶</button><button class="floating-button" data-camera="reset" title="카메라 초기화" aria-label="카메라 초기화">⤾</button></div></div>'+legend+'<div class="playbar"><button data-reset title="처음으로" aria-label="처음으로">↺</button><button data-prev title="한 단계 뒤로" aria-label="한 단계 뒤로">⟨</button><button class="play" data-play title="재생/일시정지" aria-label="재생/일시정지">'+(state.playing?'Ⅱ':'▶')+'</button><button data-next title="한 단계 앞으로" aria-label="한 단계 앞으로">⟩</button><input type="range" data-frame min="0" max="'+maxStep()+'" value="'+Math.floor(state.position)+'" aria-label="단계 위치"><span class="steps" data-step-label>0 / '+maxStep()+'</span></div></section>';
 }
 function settings(){
-  return '<div class="settings-overlay" id="settings-overlay" data-settings-overlay'+(state.settingsOpen?'':' hidden')+'><button type="button" class="settings-backdrop" data-settings-close aria-label="설정 닫기"></button><aside class="control-panel settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title"><h2 class="panel-heading" id="settings-title">시뮬레이션 설정 <button type="button" class="btn tiny" data-settings-close aria-label="설정 닫기">닫기 ×</button></h2><div class="field"><div class="field-top"><span>손실 함수</span></div><select data-setting="landscape">'+LANDSCAPES.map(l=>choice(l.id,l.name,state.landscape)).join('')+'</select></div><div class="field">'+(state.page==='compare'?'<div class="field-top"><span>옵티마이저</span><strong>다중 비교</strong></div><p class="note" style="margin-top:0">각 알고리즘의 권장 초기 학습률 사용</p>':'<div class="field-top"><span>옵티마이저</span></div><select data-setting="optimizer">'+OPTIMIZERS.map(a=>choice(a.id,a.name,state.optimizer)).join('')+'</select>')+'</div>'+(state.page==='compare'?'':'<div class="field slider-block"><div class="field-top"><span>학습률</span><strong data-value="lr">'+number(state.lr)+'</strong></div><input type="range" data-setting="lr" min="-4" max="0.20" step=".02" value="'+Math.log10(state.lr)+'" aria-label="학습률, 로그 눈금"></div>')+'<div class="field slider-block"><div class="field-top"><span>최대 단계</span><strong data-value="steps">'+state.steps+'</strong></div><input type="range" data-setting="steps" min="30" max="400" step="10" value="'+state.steps+'"></div><div class="field slider-block"><div class="field-top"><span>재생 속도</span><strong data-value="speed">'+state.speed+' 단계/초</strong></div><input type="range" data-setting="speed" min="1" max="200" step="1" value="'+state.speed+'"></div><div class="field slider-block"><div class="field-top"><span>모멘텀 / β₁</span><strong data-value="momentum">'+state.momentum.toFixed(2)+'</strong></div><input type="range" data-setting="momentum" min="0" max=".99" step=".01" value="'+state.momentum+'"></div><div class="field slider-block"><div class="field-top"><span>β₂</span><strong data-value="beta2">'+state.beta2.toFixed(3)+'</strong></div><input type="range" data-setting="beta2" min=".8" max=".999" step=".001" value="'+state.beta2+'"></div><div class="field slider-block"><div class="field-top"><span>가중치 감쇠 (AdamW / Lion)</span><strong data-value="weightDecay">'+state.weightDecay.toFixed(3)+'</strong></div><input type="range" data-setting="weightDecay" min="0" max=".3" step=".005" value="'+state.weightDecay+'"></div><div class="control-buttons"><button class="btn tiny" data-reset>초기화</button><button class="btn tiny" data-place-default>시작점 복원</button></div><p class="note">손실 함수의 가로·세로축은 파라미터 θ₁, θ₂입니다. 높이는 손실값이며, 공은 중력이 아닌 최적화 수식대로 이동합니다.</p></aside></div>';
+  const form=state.settingsDraft||state;
+  return '<div class="settings-overlay" id="settings-overlay" data-settings-overlay'+(state.settingsOpen?'':' hidden')+'><button type="button" class="settings-backdrop" data-settings-close aria-label="설정 닫기"></button><aside class="control-panel settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title"><h2 class="panel-heading" id="settings-title">시뮬레이션 설정 <button type="button" class="btn tiny" data-settings-close aria-label="설정 닫기">닫기 ×</button></h2><div class="field"><div class="field-top"><span>손실 함수</span></div><select data-setting="landscape">'+LANDSCAPES.map(l=>choice(l.id,l.name,form.landscape)).join('')+'</select></div><div class="field">'+(state.page==='compare'?'<div class="field-top"><span>옵티마이저</span><strong>다중 비교</strong></div><p class="note" style="margin-top:0">각 알고리즘의 권장 초기 학습률 사용</p>':'<div class="field-top"><span>옵티마이저</span></div><select data-setting="optimizer">'+OPTIMIZERS.map(a=>choice(a.id,a.name,form.optimizer)).join('')+'</select>')+'</div>'+(state.page==='compare'?'':'<div class="field slider-block"><div class="field-top"><span>학습률</span><strong data-value="lr">'+number(form.lr)+'</strong></div><input type="range" data-setting="lr" min="-4" max="0.20" step=".02" value="'+Math.log10(form.lr)+'" aria-label="학습률, 로그 눈금"></div>')+'<div class="field slider-block"><div class="field-top"><span>최대 단계</span><strong data-value="steps">'+form.steps+'</strong></div><input type="range" data-setting="steps" min="30" max="400" step="10" value="'+form.steps+'"></div><div class="field slider-block"><div class="field-top"><span>재생 속도</span><strong data-value="speed">'+form.speed+' 단계/초</strong></div><input type="range" data-setting="speed" min="1" max="200" step="1" value="'+form.speed+'"></div><div class="field slider-block"><div class="field-top"><span>모멘텀 / β₁</span><strong data-value="momentum">'+form.momentum.toFixed(2)+'</strong></div><input type="range" data-setting="momentum" min="0" max=".99" step=".01" value="'+form.momentum+'"></div><div class="field slider-block"><div class="field-top"><span>β₂</span><strong data-value="beta2">'+form.beta2.toFixed(3)+'</strong></div><input type="range" data-setting="beta2" min=".8" max=".999" step=".001" value="'+form.beta2+'"></div><div class="field slider-block"><div class="field-top"><span>가중치 감쇠 (AdamW / Lion)</span><strong data-value="weightDecay">'+form.weightDecay.toFixed(3)+'</strong></div><input type="range" data-setting="weightDecay" min="0" max=".3" step=".005" value="'+form.weightDecay+'"></div><div class="control-buttons settings-footer"><button type="button" class="btn" data-settings-close>취소</button><button type="button" class="btn primary" data-settings-apply>적용</button></div><p class="note">손실 함수의 가로·세로축은 파라미터 θ₁, θ₂입니다. 높이는 손실값이며, 공은 중력이 아닌 최적화 수식대로 이동합니다.</p></aside></div>';
 }
 function metrics(){
   return '<div class="metrics"><div class="metric-panel"><div class="metric-label">현재 손실값</div><div class="metric-number" data-metric="loss">—</div></div><div class="metric-panel"><div class="metric-label">기울기 크기</div><div class="metric-number" data-metric="gradient">—</div></div><div class="metric-panel"><div class="metric-label">현재 단계</div><div class="metric-number" data-metric="step">0</div></div></div><div class="loss-panel"><div class="loss-panel-heading">손실 변화</div><canvas id="loss-canvas" aria-label="손실값 변화 그래프"></canvas></div>';
@@ -82,8 +86,8 @@ function experiment(){
 }
 function compare(){
   const rows=series.map(s=>{const last=s.history.at(-1)||{};return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(last.loss)+'</td><td>'+(s.history.length-1)+'</td><td>'+({complete:'완료',converged:'수렴',diverged:'발산'}[s.status]||'—')+'</td></tr>';}).join('');
-  const choices=OPTIMIZERS.map(a=>'<button class="compare-pill '+(state.compare.includes(a.id)?'active':'')+'" data-compare="'+a.id+'"><span class="bullet" style="background:'+a.color+'"></span>'+a.name+(state.compare.includes(a.id)?' ✓':'')+'</button>').join('');
-  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+state.compare.length+'/4)</summary><div class="compare-selection">'+choices+'</div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
+  const choices=OPTIMIZERS.map(a=>'<button '+(!state.compare.includes(a.id)&&state.compare.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill +(state.compare.includes(a.id)?'active':'')+'" data-compare="'+a.id+'"><span class="bullet" style="background:'+(state.compare.includes(a.id)?COMPARE_COLORS[state.compare.indexOf(a.id)]:a.color)+'"></span>'+a.name+(state.compare.includes(a.id)?' ✓':'')+'</button>').join('');
+  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+state.compare.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
 }
 function lineage(){
   const rows=[['sgd'],['momentum','adagrad','rmsprop'],['nesterov','adam','adadelta'],['nadam','adamw','adamax','amsgrad','lion']];
@@ -140,29 +144,54 @@ function updateMetrics(){
   drawLossChart();
 }
 function changeView(view){
-  state.page=view;state.mobile=false;state.settingsOpen=false;state.playing=false;state.position=0;window.scrollTo({top:0,behavior:'instant'});render();
+  state.page=view;state.mobile=false;state.settingsOpen=false;state.settingsDraft=null;state.playing=false;state.position=0;window.scrollTo({top:0,behavior:'instant'});render();
 }
 function chooseOptimizer(id){
-  state.settingsOpen=false;state.optimizer=id;state.lr=getOptimizer(id).defaults.lr;state.page='detail';state.position=0;state.playing=false;render();
+  state.settingsOpen=false;state.settingsDraft=null;state.optimizer=id;state.lr=getOptimizer(id).defaults.lr;state.page='detail';state.position=0;state.playing=false;render();
+}
+function syncSettingsForm(){
+  const draft=state.settingsDraft;if(!draft)return;
+  for(const key of SETTINGS_KEYS){
+    const control=$('[data-setting="'+key+'"]');
+    if(control)control.value=String(key==='lr'?Math.log10(draft.lr):draft[key]);
+    const label=$('[data-value="'+key+'"]');
+    if(label)label.textContent=key==='lr'?number(draft.lr):key==='speed'?draft.speed+' 단계/초':key==='steps'?String(draft.steps):Number(draft[key]).toFixed(key==='beta2'||key==='weightDecay'?3:2);
+  }
 }
 function updateSetting(k,v){
-  if(k==='landscape'){const field=getLandscape(v);state.landscape=v;state.start={...field.start};state.lr=Math.min(getOptimizer(state.optimizer).defaults.lr,['sgd','momentum','nesterov'].includes(state.optimizer)?field.lr:Infinity);render();return;}
-  if(k==='optimizer'){chooseOptimizer(v);return;}
-  if(k==='speed'){state.speed=Number(v);const el=$('[data-value="speed"]');if(el)el.textContent=state.speed+' 단계/초';return;}
-  if(k==='lr'){state.lr=10**Number(v);}
-  else if(k==='momentum'){state.momentum=Number(v);state.beta1=state.momentum;}
-  else if(k==='beta2'){state.beta2=Number(v);}
-  else if(k==='weightDecay'){state.weightDecay=Number(v);}
-  else if(k==='steps'){state.steps=Number(v);}
-  const el=$('[data-value="'+k+'"]');if(el)el.textContent=k==='lr'?number(state.lr):k==='steps'?String(state.steps):Number(state[k]).toFixed(k==='beta2'||k==='weightDecay'?3:2);
-  recompute();const legend=$('#legend');if(legend)legend.innerHTML=series.map(s=>'<span class="legend-item"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</span>').join('');redraw();
+  const draft=state.settingsDraft;if(!draft||!SETTINGS_KEYS.includes(k))return;
+  if(k==='optimizer'){
+    draft.optimizer=v;
+    draft.lr=getOptimizer(v).defaults.lr;
+    syncSettingsForm();return;
+  }
+  if(k==='landscape'){
+    draft.landscape=v;
+    draft.lr=Math.min(getOptimizer(draft.optimizer).defaults.lr,['sgd','momentum','nesterov'].includes(draft.optimizer)?getLandscape(v).lr:Infinity);
+    syncSettingsForm();return;
+  }
+  if(k==='lr')draft.lr=10**Number(v);
+  else if(k==='momentum'){draft.momentum=Number(v);draft.beta1=draft.momentum;}
+  else draft[k]=Number(v);
+  syncSettingsForm();
 }
 function setSettingsOpen(open){
   state.settingsOpen=!!open;
+  state.settingsDraft=state.settingsOpen?Object.fromEntries(SETTINGS_KEYS.map(k=>[k,state[k]])):null;
   const overlay=$('[data-settings-overlay]');if(overlay)overlay.hidden=!state.settingsOpen;
   const toggle=$('[data-settings-toggle]');if(toggle)toggle.setAttribute('aria-expanded',String(state.settingsOpen));
-  if(state.settingsOpen){const first=overlay?.querySelector('.settings-drawer [data-settings-close]');first?.focus();}
-  else if(toggle){toggle.focus();}
+  if(state.settingsOpen){syncSettingsForm();overlay?.querySelector('.settings-drawer [data-settings-close]')?.focus();}
+  else toggle?.focus();
+}
+function applySettings(){
+  const draft=state.settingsDraft;if(!draft)return;
+  const previousLandscape=state.landscape;
+  const changed=SETTINGS_KEYS.some(k=>state[k]!==draft[k]);
+  for(const key of SETTINGS_KEYS)state[key]=draft[key];
+  state.settingsDraft=null;state.settingsOpen=false;
+  if(previousLandscape!==state.landscape)state.start={...getLandscape(state.landscape).start};
+  if(changed)render();
+  else setSettingsOpen(false);
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -172,6 +201,7 @@ document.addEventListener('click',e=>{
   if(b.hasAttribute('data-mobile')){state.mobile=!state.mobile;render();return;}
   if(b.hasAttribute('data-settings-toggle')){setSettingsOpen(!state.settingsOpen);return;}
   if(b.hasAttribute('data-settings-close')){setSettingsOpen(false);return;}
+  if(b.hasAttribute('data-settings-apply')){applySettings();return;}
   if(b.hasAttribute('data-fullscreen')){const area=b.closest('.canvas-wrap');if(!document.fullscreenElement){area?.requestFullscreen?.();}else{document.exitFullscreen?.();}return;}
   if(b.hasAttribute('data-vectors')){state.vectors=!state.vectors;const rec=renderers.find(x=>!x.preview);if(rec)rec.renderer.setVectors(state.vectors);b.textContent='벡터'+(state.vectors?' ✓':'');b.classList.toggle('selected',state.vectors);b.setAttribute('aria-pressed',String(state.vectors));return;}
   if(b.dataset.mode){state.mode=b.dataset.mode;const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.setMode(state.mode);for(const btn of document.querySelectorAll('[data-mode]'))btn.classList.toggle('active',btn.dataset.mode===state.mode);if(rec)rec.canvas.title=state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대';return;}
@@ -185,7 +215,7 @@ document.addEventListener('click',e=>{
   if(b.dataset.compare){
     const id=b.dataset.compare,has=state.compare.includes(id);
     if(has&&state.compare.length>1)state.compare=state.compare.filter(x=>x!==id);
-    else if(!has&&state.compare.length<4)state.compare.push(id);
+    else if(!has&&state.compare.length<MAX_COMPARE)state.compare.push(id);
     render();return;
   }
 });
