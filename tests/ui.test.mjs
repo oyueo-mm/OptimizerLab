@@ -19,6 +19,10 @@ test('the application boots into the four-card home without a browser dependency
   assert.match(root.innerHTML,/data-nav="compare"/);
   const press=(attributes,dataset={})=>handlers.click({target:{closest:()=>({dataset,hasAttribute:(name)=>attributes.includes(name)})}});
   press([],{nav:'experiment'});
+  assert.match(root.innerHTML,/class="page workspace-page"/);
+  assert.match(root.innerHTML,/class="workspace-stage"/);
+  assert.doesNotMatch(root.innerHTML,/class="page-header"|class="topbar"|class="canvas-hint"/);
+  assert.ok(root.innerHTML.indexOf('class="playbar"')<root.innerHTML.indexOf('class="workspace-extras"'),'playback controls must remain in the first viewport');
   assert.match(root.innerHTML,/data-settings-toggle/);
   assert.match(root.innerHTML,/data-settings-overlay hidden/);
   assert.match(root.innerHTML,/data-fullscreen/);
@@ -28,4 +32,11 @@ test('the application boots into the four-card home without a browser dependency
   press(['data-settings-close']);
   assert.equal(overlay.hidden,true,'settings drawer closes');
   assert.equal(toggle.attributes['aria-expanded'],'false');
+  press([],{open:'sgd'});
+  assert.match(root.innerHTML,/class="visual-title">SGD<\/span>/);
+  assert.equal((root.innerHTML.match(/class="visual-title"/g)||[]).length,1,'detail page shows one title');
+  assert.doesNotMatch(root.innerHTML,/class="page-header"|class="topbar"/);
+  press([],{nav:'compare'});
+  assert.match(root.innerHTML,/class="compare-choices"/);
+  assert.ok(root.innerHTML.indexOf('class="playbar"')<root.innerHTML.indexOf('class="compare-choices"'),'comparison choices appear beneath the visible canvas');
 });
