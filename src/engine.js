@@ -1,5 +1,6 @@
 import {EXTRA_OPTIMIZERS,stepExtra} from './advanced.js';
 import {SECOND_ORDER_OPTIMIZERS,stepSecondOrder} from './second-order.js';
+import {COMPLEX_LANDSCAPES} from './landscapes-complex.js';
 export const OPTIMIZERS = [
   { id:'sgd', name:'SGD', family:'기본 경사하강법', year:1951, color:'#2563eb', description:'현재 기울기의 반대 방향으로 일정한 학습률만큼 이동합니다.', formula:'θₜ = θₜ₋₁ − ηgₜ', defaults:{lr:0.055} },
   { id:'momentum', name:'SGD Momentum', family:'모멘텀', year:1964, color:'#ea8b35', description:'이전 기울기의 이동 방향을 누적해 진동을 줄이고 가속합니다.', formula:'vₜ = μvₜ₋₁ + gₜ  ·  θₜ = θₜ₋₁ − ηvₜ', defaults:{lr:0.025} },
@@ -26,6 +27,7 @@ export const LANDSCAPES = [
   {id:'saddle',name:'안장점 함수',subtitle:'안장점과 불안정 방향',range:3.2,start:{x:-1.6,y:0.32},lr:0.035,fn:(x,y)=>0.45*x*x-0.32*y*y+0.08*(x*x+y*y)**2+0.22*x*y},
   {id:'multiwell',name:'다중 우물 함수',subtitle:'복수의 깊은 분지',range:2.7,start:{x:-2.05,y:1.95},lr:0.055,fn:(x,y)=>0.20*(x*x-1.4)**2+0.24*(y*y-0.85)**2+0.16*x*y}
 ];
+LANDSCAPES.push(...COMPLEX_LANDSCAPES);
 export const getOptimizer = id => OPTIMIZERS.find(o=>o.id===id)||OPTIMIZERS[6];
 export const getLandscape = id => LANDSCAPES.find(l=>l.id===id)||LANDSCAPES[0];
 export function gradient(fn,x,y){
