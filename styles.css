@@ -98,3 +98,11 @@
 .compare-pill:disabled{opacity:.36;cursor:not-allowed;background:#f8fafc}
 .workspace-stage .legend{column-gap:13px;row-gap:4px;flex-wrap:wrap}
 @media(max-width:570px){.settings-drawer .settings-footer{bottom:-16px}}
+
+/* Compare picker stays open while users stage selections. */
+.compare-choices .compare-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:9px;border-top:1px solid var(--border);padding:13px 16px 16px}
+.compare-choices .compare-note{margin-right:auto;color:#8a98aa;font-size:11px}
+.compare-choices .compare-actions .btn{min-width:70px}
+.compare-pill .compare-check{font-weight:750;color:#2573c7}
+.compare-pill{gap:7px}
+@media(max-width:570px){.compare-choices .compare-note{width:100%;margin-bottom:5px}}
