@@ -86,7 +86,7 @@ function experiment(){
 }
 function compare(){
   const rows=series.map(s=>{const last=s.history.at(-1)||{};return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(last.loss)+'</td><td>'+(s.history.length-1)+'</td><td>'+({complete:'완료',converged:'수렴',diverged:'발산'}[s.status]||'—')+'</td></tr>';}).join('');
-  const choices=OPTIMIZERS.map(a=>'<button '+(!state.compare.includes(a.id)&&state.compare.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill +(state.compare.includes(a.id)?'active':'')+'" data-compare="'+a.id+'"><span class="bullet" style="background:'+(state.compare.includes(a.id)?COMPARE_COLORS[state.compare.indexOf(a.id)]:a.color)+'"></span>'+a.name+(state.compare.includes(a.id)?' ✓':'')+'</button>').join('');
+  const choices=OPTIMIZERS.map(a=>'<button '+(!state.compare.includes(a.id)&&state.compare.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill '+(state.compare.includes(a.id)?'active':'')+'" data-compare="'+a.id+'"><span class="bullet" style="background:'+(state.compare.includes(a.id)?COMPARE_COLORS[state.compare.indexOf(a.id)]:a.color)+'"></span>'+a.name+(state.compare.includes(a.id)?' ✓':'')+'</button>').join('');
   return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+state.compare.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
 }
 function lineage(){
