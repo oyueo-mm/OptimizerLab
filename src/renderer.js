@@ -25,6 +25,7 @@ export class SurfaceRenderer{
     this.dpr=dpr;if(this.catalogPreview&&this.previewPath)this.previewFocus=previewCamera(this.previewPath,this.w,this.h);this.invalidate();this.draw();
   }
   setField(field){this.field=field;this.range=sampleRange(field,this.preview?32:64);this.meshSamples=null;this.invalidate();this.draw();}
+  setScene(field,series,step=0){this.field=field;this.range=sampleRange(field,this.preview?32:64);this.meshSamples=null;this.drawData=series||[];this.current=step;this.invalidate();this.draw();}
   setMode(mode){if(this.mode!==mode){this.mode=mode;this.invalidate();this.draw();}}
   setVectors(visible){this.showVectors=!!visible;this.draw();}
   setFrame(series,step){this.drawData=series||[];this.current=step||0;this.draw();}
