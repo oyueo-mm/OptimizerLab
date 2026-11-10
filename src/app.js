@@ -13,7 +13,7 @@ const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',l
 const prefersReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let renderers=[],series=[],lastTime=0,lastPreview=0,previewTime=0,observer=null;
 const choice=(a,b,selected)=>'<option value="'+a+'"'+(a===selected?' selected':'')+'>'+safe(b)+'</option>';
-function getOptions(override={}){return {lr:state.lr,momentum:state.momentum,beta1:state.beta1,beta2:state.beta2,weightDecay:state.weightDecay,steps:state.steps,...override};}
+function getOptions(override={}){return {lr:state.lr,momentum:state.momentum,beta1:state.beta1,beta2:state.beta2,weightDecay:state.weightDecay,steps:state.steps,bounds:'stop',...override};}
 function recompute(){
   const field=getLandscape(state.landscape);
   series=(state.page==='compare'?state.compare:[state.optimizer]).map(id=>{
@@ -86,7 +86,7 @@ function experiment(){
 }
 function compare(){
   const draft=state.compareDraft||state.compare;
-  const rows=series.map(s=>{const last=s.history.at(-1)||{};return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(last.loss)+'</td><td>'+(s.history.length-1)+'</td><td>'+({complete:'완료',converged:'수렴',diverged:'발산'}[s.status]||'—')+'</td></tr>';}).join('');
+  const rows=series.map(s=>{const last=s.history.at(-1)||{};return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(last.loss)+'</td><td>'+(s.history.length-1)+'</td><td>'+({complete:'완료',converged:'수렴',diverged:'발산',out_of_bounds:'범위 이탈'}[s.status]||'—')+'</td></tr>';}).join('');
   const choices=OPTIMIZERS.map(a=>{const index=draft.indexOf(a.id),selected=index>=0;return '<button type="button" '+(!selected&&draft.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill '+(selected?'active':'')+'" data-compare="'+a.id+'" aria-pressed="'+selected+'"><span class="bullet" style="background:'+(selected?COMPARE_COLORS[index]:a.color)+'"></span><span class="compare-name">'+a.name+'</span><span class="compare-check">'+(selected?'✓':'')+'</span></button>';}).join('');
   return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+draft.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div><div class="compare-actions"><span class="compare-note">최대 '+MAX_COMPARE+'개 선택 · 적용 전까지 비교 결과 유지</span><button type="button" class="btn" data-compare-cancel>취소</button><button type="button" class="btn primary" data-compare-apply>적용</button></div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
 }
@@ -108,10 +108,10 @@ function mountPreview(){
     if(rec){rec.visible=true;return;}
     const id=canvas.dataset.preview,field=getLandscape(canvas.dataset.previewLand||'wavy'),algo=getOptimizer(id);
     const lr=catalog?Math.min(algo.defaults.lr,field.lr*2):Math.min(algo.defaults.lr,['adam','adamw'].includes(id)?Math.max(.04,field.lr*2):Math.max(.018,field.lr));
-    const trajectory=simulate(id,field,field.start,{lr,steps:catalog?120:100});
+    const trajectory=simulate(id,field,field.start,{lr,steps:catalog?120:100,bounds:'stop'});
     const end=activePreviewEnd(trajectory.history);
-    const renderer=new SurfaceRenderer(canvas,{mode:catalog?'2d':'3d',field,preview:true,previewKind:catalog?'catalog':'home'});
-    if(catalog)renderer.setPreviewPath(trajectory.history.slice(0,end+1));
+    const renderer=new SurfaceRenderer(canvas,{mode:'3d',field,preview:true,previewKind:catalog?'catalog':'home'});
+    // Every catalog card now shows the complete 3D surface, not a 2D cropped contour.
     rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,series:[{...trajectory,color:algo.color}]};
     renderers.push(rec);
     renderer.setFrame(rec.series,prefersReduced?end:0);
