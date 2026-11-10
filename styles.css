@@ -127,3 +127,9 @@
 /* Selection draft may be empty; show an inline error only on invalid Apply. */
 .compare-choices .compare-error{margin:0 16px 10px;font-size:12px;color:#b42335;font-weight:600}
 .compare-choices .compare-error[hidden]{display:none}
+
+/* Rotating home previews: optimizer name stays prominent, map name stays secondary. */
+.hero-card-heading{display:flex;align-items:baseline;justify-content:space-between;gap:9px;min-width:0;margin-bottom:8px}
+.hero-card-heading h3{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.hero-map-name{font-size:10px;color:#8898aa;white-space:nowrap;max-width:43%;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}
+@media(max-width:570px){.hero-card-heading{gap:5px}.hero-map-name{font-size:9px;max-width:47%}}
