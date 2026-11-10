@@ -1,11 +1,8 @@
 import {sampleRange,gradient} from './engine.js';
 import {previewCamera} from './preview.js';
-const hexToRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
-function palette(t,brightness=1){
-  const stops=[[246,249,252],[215,231,244],[156,193,226],[85,141,191],[37,85,137],[20,52,91]];
-  const a=Math.max(0,Math.min(0.999,t))*(stops.length-1),i=Math.floor(a),w=a-i;
-  return 'rgb('+stops[i].map((v,k)=>Math.round(Math.max(0,Math.min(255,(v*(1-w)+stops[i+1][k]*w)*brightness)))).join(',')+')';
-}
+const COLOR_STOPS=[[18,43,140],[16,104,202],[17,183,203],[26,189,119],[143,213,58],[246,213,56],[246,132,42],[210,38,60]];
+function paletteRgb(t,brightness=1){const f=Math.max(0,Math.min(.999999,t))*(COLOR_STOPS.length-1),i=Math.floor(f),w=f-i;return COLOR_STOPS[i].map((v,k)=>Math.round(Math.max(0,Math.min(255,(v*(1-w)+COLOR_STOPS[i+1][k]*w)*brightness))));}
+function palette(t,brightness=1){return 'rgb('+paletteRgb(t,brightness).join(',')+')';}
 const interpolate=(a,b,t)=>a+(b-a)*t;
 export class SurfaceRenderer{
   constructor(canvas,opts={}){
@@ -13,7 +10,7 @@ export class SurfaceRenderer{
     this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.showVectors=false;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
     this.yaw=0.68;this.pitch=0.73;this.zoom=1;
     this.onPlace=opts.onPlace;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
-    this.range=sampleRange(this.field,30);this.cache=null;this.triangles=[];this.visible=true;
+    this.range=sampleRange(this.field,this.preview?32:64);this.cache=null;this.triangles=[];this.visible=true;
     this.handleDown=e=>this.pointerDown(e);this.handleMove=e=>this.pointerMove(e);this.handleUp=e=>this.pointerUp(e);
     this.handleWheel=e=>{if(!this.preview){e.preventDefault();this.zoom=Math.max(0.6,Math.min(2.3,this.zoom*(e.deltaY>0?0.91:1.09)));this.invalidate();this.draw();}};
     this.canvas.addEventListener('pointerdown',this.handleDown);this.canvas.addEventListener('pointermove',this.handleMove);this.canvas.addEventListener('pointerup',this.handleUp);this.canvas.addEventListener('pointercancel',this.handleUp);this.canvas.addEventListener('wheel',this.handleWheel,{passive:false});
@@ -27,7 +24,7 @@ export class SurfaceRenderer{
     if(this.canvas.width!==pw||this.canvas.height!==ph){this.canvas.width=pw;this.canvas.height=ph;}
     this.dpr=dpr;if(this.catalogPreview&&this.previewPath)this.previewFocus=previewCamera(this.previewPath,this.w,this.h);this.invalidate();this.draw();
   }
-  setField(field){this.field=field;this.range=sampleRange(field,30);this.invalidate();this.draw();}
+  setField(field){this.field=field;this.range=sampleRange(field,this.preview?32:64);this.invalidate();this.draw();}
   setMode(mode){if(this.mode!==mode){this.mode=mode;this.invalidate();this.draw();}}
   setVectors(visible){this.showVectors=!!visible;this.draw();}
   setFrame(series,step){this.drawData=series||[];this.current=step||0;this.draw();}
@@ -38,13 +35,13 @@ export class SurfaceRenderer{
   project(x,y,z=this.heightAt(x,y)){
     const r=this.field.range,a=x/r,b=y/r;
     const ca=Math.cos(this.yaw),sa=Math.sin(this.yaw),c=a*ca-b*sa,d=a*sa+b*ca;
-    const scale=Math.min(this.w*0.265,this.h*0.45)*this.zoom;
+    const scale=Math.min(this.w*(this.preview?.31:.31),this.h*(this.preview?.52:.48))*this.zoom;
     return {x:this.w/2+c*scale,y:this.h*0.52+(d*Math.sin(this.pitch)-(z-0.45)*0.95*Math.cos(this.pitch))*scale,depth:d*Math.cos(this.pitch)+(z-0.45)*0.95*Math.sin(this.pitch)};
   }
   buildCache(){
     const c=document.createElement('canvas');c.width=this.canvas.width;c.height=this.canvas.height;
     const g=c.getContext('2d');g.setTransform(this.dpr,0,0,this.dpr,0,0);
-    g.fillStyle='#f8fbfe';g.fillRect(0,0,this.w,this.h);
+    g.fillStyle='#f6f9fc';g.fillRect(0,0,this.w,this.h);
     if(this.mode==='2d')this.draw2D(g);else this.draw3D(g);
     this.cache=c;
   }
@@ -68,19 +65,19 @@ export class SurfaceRenderer{
     if(this.catalogPreview){this.drawCatalog2D(g);return;}
     const r=this.field.range,pad=this.preview?5:30,scale=Math.min((this.w-2*pad)/(2*r),(this.h-2*pad)/(2*r))*this.zoom;
     const left=this.w/2-r*scale,top=this.h/2-r*scale,size=2*r*scale;
-    const n=this.preview?44:110,b=this.range;
+    const n=this.preview?48:128,b=this.range;
     const small=document.createElement('canvas');small.width=n;small.height=n;
     const data=small.getContext('2d').createImageData(n,n);
     for(let j=0;j<n;j++)for(let i=0;i<n;i++){
       const x=(i/(n-1)*2-1)*r,y=(1-j/(n-1)*2)*r;
       const t=(this.field.fn(x,y)-b.min)/(b.max-b.min||1);
-      const col=hexToRgb('#eaf3fa');const high=hexToRgb('#2e679f');const a=Math.pow(Math.max(0,Math.min(1,t)),0.75);
-      const k=(j*n+i)*4;for(let z=0;z<3;z++)data.data[k+z]=Math.round(col[z]*(1-a)+high[z]*a);data.data[k+3]=255;
+      const color=paletteRgb(Math.pow(Math.max(0,Math.min(1,t)),.8));const k=(j*n+i)*4;
+      for(let z=0;z<3;z++)data.data[k+z]=color[z];data.data[k+3]=255;
     }
     small.getContext('2d').putImageData(data,0,0);g.save();g.beginPath();g.rect(0,0,this.w,this.h);g.clip();g.imageSmoothingEnabled=true;g.drawImage(small,left,top,size,size);
     const N=this.preview?28:58;const heights=[];
     for(let j=0;j<=N;j++){const row=[];for(let i=0;i<=N;i++)row.push(this.field.fn(-r+2*r*i/N,r-2*r*j/N));heights.push(row);}
-    g.strokeStyle='rgba(255,255,255,.66)';g.lineWidth=this.preview?0.65:1.03;
+    g.strokeStyle='rgba(255,255,255,.73)';g.lineWidth=this.preview?0.75:1.1;
     const edge=(a,b,va,vb,level)=>{const t=(level-va)/(vb-va||1e-12);return [interpolate(a[0],b[0],t),interpolate(a[1],b[1],t)];};
     for(let k=1;k<=9;k++){
       const level=b.min+(b.max-b.min)*k/10;g.beginPath();
@@ -96,7 +93,7 @@ export class SurfaceRenderer{
     g.restore();
   }
   draw3D(g){
-    const N=this.preview?25:52,r=this.field.range,vertices=[];
+    const N=this.preview?36:(this.dragging?42:76),r=this.field.range,vertices=[];
     for(let j=0;j<=N;j++){
       const row=[];for(let i=0;i<=N;i++){const x=-r+2*r*i/N,y=-r+2*r*j/N,z=this.heightAt(x,y);row.push({...this.project(x,y,z),wx:x,wy:y,z});}vertices.push(row);
     }
@@ -106,9 +103,9 @@ export class SurfaceRenderer{
       const a=vertices[j][i],b=vertices[j][i+1],c=vertices[j+1][i+1],d=vertices[j+1][i];
       const depth=(a.depth+b.depth+c.depth+d.depth)/4,z=(a.z+b.z+c.z+d.z)/4;
       const dzdx=((b.z-a.z)+(c.z-d.z))/(2*step),dzdy=((d.z-a.z)+(c.z-b.z))/(2*step);
-      const nx=-dzdx*1.8,ny=-dzdy*1.8,nz=1;
+      const nx=-dzdx*4.0,ny=-dzdy*4.0,nz=1;
       const lambert=(nx*(-.5)+ny*(-.55)+nz*.8)/Math.sqrt((nx*nx+ny*ny+nz*nz)*(.5*.5+.55*.55+.8*.8));
-      const brightness=Math.max(.65,Math.min(1.2,.83+.36*lambert));
+      const brightness=Math.max(.53,Math.min(1.15,.75+.47*lambert));
       cells.push({v:[a,b,c,d],depth,z,brightness});
       this.triangles.push([a,b,c],[a,c,d]);
     }
@@ -117,7 +114,7 @@ export class SurfaceRenderer{
     for(const cell of cells){
       g.beginPath();g.moveTo(cell.v[0].x,cell.v[0].y);for(let i=1;i<4;i++)g.lineTo(cell.v[i].x,cell.v[i].y);g.closePath();
       g.fillStyle=palette(cell.z,cell.brightness);g.fill();
-      g.strokeStyle='rgba(240,248,255,.11)';g.lineWidth=this.preview?.18:.3;g.stroke();
+      if(!this.preview){g.strokeStyle='rgba(255,255,255,.12)';g.lineWidth=.22;g.stroke();}
     }
     if(!this.preview){
       g.save();g.font='11px system-ui';g.fillStyle='rgba(51,78,108,.72)';
@@ -134,10 +131,10 @@ export class SurfaceRenderer{
       const entry=series[n],points=entry.history||[],col=entry.color||'#ed8731';if(!points.length)continue;
       const t=Math.max(0,Math.min(step,points.length-1)),whole=Math.floor(t),frac=t-whole;
       const now=whole<points.length-1?{x:interpolate(points[whole].x,points[whole+1].x,frac),y:interpolate(points[whole].y,points[whole+1].y,frac)}:points[whole];
-      g.save();g.strokeStyle=col;g.lineWidth=this.catalogPreview?3.5:this.preview?2.1:3.2;g.lineJoin='round';g.lineCap='round';g.globalAlpha=.96;g.shadowColor=col;g.shadowBlur=this.catalogPreview?3:this.preview?0:5;g.beginPath();
+      g.save();const lineWidth=this.catalogPreview?3.5:this.preview?2.9:3.5;g.lineJoin='round';g.lineCap='round';g.globalAlpha=1;g.beginPath();
       for(let j=0;j<=whole;j++){const p=this.toScreen(points[j]);if(j===0)g.moveTo(p.x,p.y);else g.lineTo(p.x,p.y);}
       if(frac>0){const pos=this.toScreen(now);g.lineTo(pos.x,pos.y);}
-      g.stroke();g.shadowBlur=0;
+      g.strokeStyle='rgba(12,26,42,.82)';g.lineWidth=lineWidth+3.3;g.shadowBlur=0;g.stroke();g.strokeStyle=col;g.lineWidth=lineWidth;g.shadowColor=col;g.shadowBlur=this.preview?1:4;g.stroke();g.shadowBlur=0;
       if(this.showVectors&&!this.preview){
         const gradVec=gradient(this.field.fn,now.x,now.y),mag=Math.hypot(...gradVec);
         const future=points[Math.min(points.length-1,whole+1)],update=[future.x-now.x,future.y-now.y],umag=Math.hypot(...update);
@@ -153,11 +150,11 @@ export class SurfaceRenderer{
         if(mag>1e-9)arrow([-gradVec[0],-gradVec[1]],this.field.range*.23,'#378ada');
         if(umag>1e-9)arrow(update,this.field.range*.23,'#ea9237');
       }
-      const p=this.toScreen(now);const radius=this.catalogPreview?7:this.preview?4.3:7.0;
+      const p=this.toScreen(now);const radius=this.catalogPreview?7:this.preview?5.6:7.8;
       const grad=g.createRadialGradient(p.x-radius*.32,p.y-radius*.36,0,p.x,p.y,radius*1.22);
       grad.addColorStop(0,'#ffffff');grad.addColorStop(.16,col);grad.addColorStop(1,'#1e293b');
       g.fillStyle=grad;g.beginPath();g.arc(p.x,p.y,radius,0,Math.PI*2);g.fill();
-      if(!this.preview||this.catalogPreview){g.strokeStyle='#fff';g.lineWidth=this.catalogPreview?2.3:1.4;g.stroke();}if(this.catalogPreview){const first=this.toScreen(points[0]);g.beginPath();g.arc(first.x,first.y,3,0,Math.PI*2);g.fillStyle='#fff';g.fill();g.lineWidth=1.6;g.strokeStyle=col;g.stroke();}
+      g.strokeStyle='#162638';g.lineWidth=this.preview?3:4;g.stroke();g.strokeStyle='#fff';g.lineWidth=this.preview?1.5:2;g.stroke();if(this.catalogPreview){const first=this.toScreen(points[0]);g.beginPath();g.arc(first.x,first.y,3,0,Math.PI*2);g.fillStyle='#fff';g.fill();g.lineWidth=1.6;g.strokeStyle=col;g.stroke();}
       g.restore();
     }
   }
@@ -191,6 +188,7 @@ export class SurfaceRenderer{
   }
   pointerUp(e){
     if(!this.dragging)return;this.dragging=false;
+    if(this.dragMoved&&this.mode==='3d'){this.invalidate();this.draw();}
     if(!this.dragMoved&&this.onPlace){const r=this.canvas.getBoundingClientRect();const picked=this.pick(e.clientX-r.left,e.clientY-r.top);if(picked)this.onPlace(picked);}
   }
 }
