@@ -19,6 +19,10 @@ test('the application boots into the four-card home without a browser dependency
   assert.match(root.innerHTML,/옵티마이저 도감/);
   assert.match(root.innerHTML,/data-preview-land="erosionMountains"/);
   assert.match(root.innerHTML,/data-preview-land="falseBasin"/);
+  assert.equal((root.innerHTML.match(/data-home-slot="[0-3]"/g)||[]).length,4,'all four home cards have independent rotation slots');
+  assert.equal((root.innerHTML.match(/class="hero-map-name"/g)||[]).length,4,'each card shows its current terrain name');
+  assert.match(root.innerHTML,/data-home-slot="0"/);
+  assert.match(root.innerHTML,/data-home-slot="3"/);
   assert.match(root.innerHTML,/<div class="brand">.*data-sidebar.*<\/button><\/div><nav>/,'collapse button is beside the small logo');
   assert.doesNotMatch(root.innerHTML,/EXPLORE|12 optimizers|Optimization, visualized|공을 놓고, 움직임을 관찰하세요/);
   assert.match(root.innerHTML,/data-preview="sgd"/);
