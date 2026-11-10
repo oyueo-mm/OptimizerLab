@@ -1,6 +1,7 @@
 import {EXTRA_OPTIMIZERS,stepExtra} from './advanced.js';
 import {SECOND_ORDER_OPTIMIZERS,stepSecondOrder} from './second-order.js';
 import {COMPLEX_LANDSCAPES} from './landscapes-complex.js';
+import {NEW_LANDSCAPES} from './landscapes-v3.js';
 export const OPTIMIZERS = [
   { id:'sgd', name:'SGD', family:'기본 경사하강법', year:1951, color:'#2563eb', description:'현재 기울기의 반대 방향으로 일정한 학습률만큼 이동합니다.', formula:'θₜ = θₜ₋₁ − ηgₜ', defaults:{lr:0.055} },
   { id:'momentum', name:'SGD Momentum', family:'모멘텀', year:1964, color:'#ea8b35', description:'이전 기울기의 이동 방향을 누적해 진동을 줄이고 가속합니다.', formula:'vₜ = μvₜ₋₁ + gₜ  ·  θₜ = θₜ₋₁ − ηvₜ', defaults:{lr:0.025} },
@@ -18,16 +19,9 @@ export const OPTIMIZERS = [
 OPTIMIZERS.push(...EXTRA_OPTIMIZERS,...SECOND_ORDER_OPTIMIZERS);
 export const LANDSCAPES = [
   {id:'wavy',name:'물결 계곡',subtitle:'울퉁불퉁한 다중 계곡',range:3.2,start:{x:-2.25,y:1.8},lr:0.045,fn:(x,y)=>0.18*(x*x+y*y)+0.50*Math.sin(2.6*x)*Math.cos(2.3*y)+0.26*Math.sin(3.1*x+1.3*y)+1.0},
-  {id:'bowl',name:'볼록 함수',subtitle:'단일 전역 최솟값',range:3.2,start:{x:-2.35,y:1.9},lr:0.12,fn:(x,y)=>0.34*x*x+0.82*y*y},
-  {id:'ravine',name:'좁은 계곡',subtitle:'협곡과 진동',range:3.1,start:{x:-2.3,y:1.8},lr:0.045,fn:(x,y)=>0.055*(x+y)*(x+y)+1.5*(y-0.5*x)*(y-0.5*x)},
-  {id:'rosenbrock',name:'로젠브록 함수',subtitle:'휘어진 좁은 골짜기',range:2.25,start:{x:-1.75,y:1.7},lr:0.025,fn:(x,y)=>0.15*(1-x)*(1-x)+1.15*(y-x*x)*(y-x*x)},
-  {id:'rastrigin',name:'라스트리긴 함수',subtitle:'여러 국소 최솟값',range:3.1,start:{x:-2.15,y:1.65},lr:0.023,fn:(x,y)=>(20+x*x+y*y-10*(Math.cos(2*Math.PI*x)+Math.cos(2*Math.PI*y)))/16},
-  {id:'himmelblau',name:'힘멜블라우 함수',subtitle:'서로 다른 네 개의 최솟값',range:5,start:{x:-3.5,y:2.8},lr:0.035,fn:(x,y)=>((x*x+y-11)**2+(x+y*y-7)**2)/38},
-  {id:'ackley',name:'애클리 함수',subtitle:'평탄한 영역과 작은 분지',range:4,start:{x:-2.6,y:2.4},lr:0.08,fn:(x,y)=>-20*Math.exp(-0.2*Math.sqrt((x*x+y*y)/2))-Math.exp((Math.cos(2*Math.PI*x)+Math.cos(2*Math.PI*y))/2)+20+Math.E},
-  {id:'saddle',name:'안장점 함수',subtitle:'안장점과 불안정 방향',range:3.2,start:{x:-1.6,y:0.32},lr:0.035,fn:(x,y)=>0.45*x*x-0.32*y*y+0.08*(x*x+y*y)**2+0.22*x*y},
-  {id:'multiwell',name:'다중 우물 함수',subtitle:'복수의 깊은 분지',range:2.7,start:{x:-2.05,y:1.95},lr:0.055,fn:(x,y)=>0.20*(x*x-1.4)**2+0.24*(y*y-0.85)**2+0.16*x*y}
+  ...COMPLEX_LANDSCAPES,
+  ...NEW_LANDSCAPES
 ];
-LANDSCAPES.push(...COMPLEX_LANDSCAPES);
 export const getOptimizer = id => OPTIMIZERS.find(o=>o.id===id)||OPTIMIZERS[6];
 export const getLandscape = id => LANDSCAPES.find(l=>l.id===id)||LANDSCAPES[0];
 export function gradient(fn,x,y){
