@@ -29,11 +29,11 @@ function appChrome(content){
   const compact=['detail','experiment','compare'].includes(state.page);
   const top=state.page==='home'||compact?'':'<header class="topbar"><div style="display:flex;align-items:center;gap:10px"><button class="btn ghost icon mobile-menu" data-mobile aria-label="메뉴 열기">☰</button><span class="topbar-title">'+safe(title)+'</span></div></header>';
   const mobile=state.page==='home'?'<button class="btn ghost icon home-mobile-menu" data-mobile aria-label="메뉴 열기">☰</button>':'';
-  return '<div class="app-shell"><aside class="sidebar '+(state.sidebar?'collapsed ':'')+(state.mobile?'open':'')+'"><div class="brand"><span class="brand-icon">O</span><span class="brand-title">OptimizerLab</span></div><nav>'+nav+'</nav><button class="sidebar-collapse" data-sidebar title="사이드바 접기/펼치기">☰</button></aside><main class="main">'+top+'<div class="page '+(compact?'workspace-page':'')+'">'+mobile+content+'</div></main></div>';
+  return '<div class="app-shell"><aside class="sidebar '+(state.sidebar?'collapsed ':'')+(state.mobile?'open':'')+'"><div class="brand"><span class="brand-icon">O</span><span class="brand-title">OptimizerLab</span><button class="sidebar-collapse" data-sidebar title="사이드바 접기/펼치기" aria-label="사이드바 접기/펼치기">'+(state.sidebar?'›':'‹')+'</button></div><nav>'+nav+'</nav></aside><main class="main">'+top+'<div class="page '+(compact?'workspace-page':'')+'">'+mobile+content+'</div></main></div>';
 }
 function home(){
   const cards=['sgd','momentum','adamw','adam'];
-  return '<section class="home"><div class="home-copy"><h1>OptimizerLab</h1><p class="lead">최적화 알고리즘 도감</p></div><div class="home-showcase">'+cards.map((id,i)=>{const a=getOptimizer(id);return '<button class="hero-card" data-open="'+id+'"><h3>'+a.name+'</h3><canvas data-preview="'+id+'" data-preview-land="'+['ravine','wavy','rosenbrock','bowl'][i]+'" aria-label="'+a.name+' 궤적 미리보기"></canvas></button>';}).join('')+'</div></section>';
+  return '<section class="home"><div class="home-copy"><h1>OptimizerLab</h1><p class="lead">옵티마이저 도감</p></div><div class="home-showcase">'+cards.map((id,i)=>{const a=getOptimizer(id);return '<button class="hero-card" data-open="'+id+'"><h3>'+a.name+'</h3><canvas data-preview="'+id+'" data-preview-land="'+['erosionMountains','twistedCanyon','falseBasin','isolatedWells'][i]+'" aria-label="'+a.name+' 궤적 미리보기"></canvas></button>';}).join('')+'</div></section>';
 }
 function catalogCard(a){
   return '<button class="catalog-card" data-open="'+a.id+'"><canvas data-preview="'+a.id+'" data-preview-land="wavy" aria-label="'+a.name+' 애니메이션"></canvas><div class="catalog-name">'+a.name+'</div></button>';
@@ -107,13 +107,14 @@ function mountPreview(){
     let rec=renderers.find(r=>r.canvas===canvas);
     if(rec){rec.visible=true;return;}
     const id=canvas.dataset.preview,field=getLandscape(canvas.dataset.previewLand||'wavy'),algo=getOptimizer(id);
-    const trajectory=simulate(id,field,field.start,{lr:Math.min(algo.defaults.lr,field.lr*2),steps:catalog?120:100});
-    const end=catalog?activePreviewEnd(trajectory.history):trajectory.history.length-1;
-    const renderer=new SurfaceRenderer(canvas,{mode:'2d',field,preview:true,previewKind:catalog?'catalog':'home'});
+    const lr=catalog?Math.min(algo.defaults.lr,field.lr*2):Math.min(algo.defaults.lr,['adam','adamw'].includes(id)?Math.max(.04,field.lr*2):Math.max(.018,field.lr));
+    const trajectory=simulate(id,field,field.start,{lr,steps:catalog?120:100});
+    const end=activePreviewEnd(trajectory.history);
+    const renderer=new SurfaceRenderer(canvas,{mode:catalog?'2d':'3d',field,preview:true,previewKind:catalog?'catalog':'home'});
     if(catalog)renderer.setPreviewPath(trajectory.history.slice(0,end+1));
     rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,series:[{...trajectory,color:algo.color}]};
     renderers.push(rec);
-    renderer.setFrame(rec.series,catalog?(prefersReduced?end:0):Math.min(trajectory.history.length-1,27));
+    renderer.setFrame(rec.series,prefersReduced?end:0);
   }
   observer=new IntersectionObserver(entries=>{
     for(const e of entries){if(e.isIntersecting)activate(e.target);else{const rec=renderers.find(r=>r.canvas===e.target);if(rec)rec.visible=false;}}
@@ -167,9 +168,16 @@ function updateSetting(k,v){
     syncSettingsForm();return;
   }
   if(k==='landscape'){
-    draft.landscape=v;
-    draft.lr=Math.min(getOptimizer(draft.optimizer).defaults.lr,['sgd','momentum','nesterov'].includes(draft.optimizer)?getLandscape(v).lr:Infinity);
-    syncSettingsForm();return;
+    const field=getLandscape(v);
+    draft.landscape=field.id;
+    state.landscape=field.id;
+    state.start={...field.start};
+    recompute();
+    const rec=renderers.find(r=>!r.preview);
+    if(rec){rec.renderer.setField(field);rec.renderer.setFrame(series,0);}
+    const title=$('.visual-landscape');if(title)title.textContent=field.name;
+    const legend=$('#legend');if(legend&&!legend.hidden)legend.innerHTML=series.map(s=>'<span class="legend-item"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</span>').join('');
+    redraw();syncSettingsForm();return;
   }
   if(k==='lr')draft.lr=10**Number(v);
   else if(k==='momentum'){draft.momentum=Number(v);draft.beta1=draft.momentum;}
@@ -281,8 +289,8 @@ function tick(now){
       let used=0;
       for(const rec of renderers){
         if(!rec.preview||!rec.visible||used>=(rec.catalog?20:8))continue;
-        if(rec.catalog){rec.elapsed+=elapsed;rec.renderer.setFrame(rec.series,previewFrame(rec.elapsed,rec.activeEnd));}
-        else{const len=rec.series[0].history.length-1;rec.renderer.setFrame(rec.series,(previewTime*10)%Math.max(1,len));}
+        rec.elapsed+=elapsed;
+        rec.renderer.setFrame(rec.series,rec.catalog?previewFrame(rec.elapsed,rec.activeEnd):previewFrame(rec.elapsed,rec.activeEnd,4.2,.35));
         used++;
       }
     }
