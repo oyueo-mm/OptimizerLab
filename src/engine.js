@@ -34,6 +34,7 @@ export function simulate(algorithm,landscape,start,options={}){
   const f=field.fn, lr=Number(options.lr??getOptimizer(id).defaults.lr),mu=Number(options.momentum??0.9),b1=Number(options.beta1??0.9),b2=Number(options.beta2??0.999),wd=Number(options.weightDecay??0.01),eps=1e-8,steps=Math.min(500,Math.max(1,Math.round(options.steps??180))),rho=Number(options.rho??0.95);
   const p=[Number(start.x),Number(start.y)],m=[0,0],v=[0,0],u=[0,0],vmax=[0,0],deltaV=[0,0];
   const history=[{x:p[0],y:p[1],loss:f(...p),norm:Math.hypot(...gradient(f,...p)),step:0,dx:0,dy:0}];
+  const stopAtMapEdge=options.bounds==='stop',mapRange=field.range;
   let status='complete';
   const isAdvanced=EXTRA_OPTIMIZERS.some(item=>item.id===id),isSecondOrder=SECOND_ORDER_OPTIMIZERS.some(item=>item.id===id),advancedState={};
   for(let t=1;t<=steps;t++){
@@ -63,8 +64,22 @@ export function simulate(algorithm,landscape,start,options={}){
         }
       }
     }
+    if(!p.every(Number.isFinite)||Math.max(Math.abs(p[0]),Math.abs(p[1]))>1e4){status='diverged';break;}
+    if(stopAtMapEdge&&(Math.abs(p[0])>mapRange||Math.abs(p[1])>mapRange)){
+      let fraction=1;
+      for(let i=0;i<2;i++){
+        if(p[i]>mapRange)fraction=Math.min(fraction,(mapRange-before[i])/(p[i]-before[i]));
+        if(p[i]<-mapRange)fraction=Math.min(fraction,(-mapRange-before[i])/(p[i]-before[i]));
+      }
+      fraction=Math.max(0,Math.min(1,fraction));
+      p[0]=Math.max(-mapRange,Math.min(mapRange,before[0]+fraction*(p[0]-before[0])));
+      p[1]=Math.max(-mapRange,Math.min(mapRange,before[1]+fraction*(p[1]-before[1])));
+      const loss=f(...p);
+      history.push({x:p[0],y:p[1],loss,norm,step:t,dx:p[0]-before[0],dy:p[1]-before[1],atBoundary:true});
+      status='out_of_bounds';break;
+    }
     const loss=f(...p);
-    if(!Number.isFinite(loss)||Math.max(Math.abs(p[0]),Math.abs(p[1]))>1e4){status='diverged';break;}
+    if(!Number.isFinite(loss)){status='diverged';break;}
     history.push({x:p[0],y:p[1],loss,norm,step:t,dx:p[0]-before[0],dy:p[1]-before[1]});
     if(norm<1e-7&&t>10){status='converged';break;}
   }
