@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {SurfaceRenderer} from '../src/renderer.js';
+test('3D terrain uses the same full mesh resolution while dragging or stationary',()=>{const source=readFileSync(new URL('../src/renderer.js',import.meta.url),'utf8');assert.match(source,/const N=this\.preview\?36:76/);assert.doesNotMatch(source,/this\.dragging\?42:76/);});
+test('surface heights are sampled only once during camera orbit',()=>{let sampled=0;const field={range:2};const fake={field,meshSamples:null,heightAt:(x,y)=>{sampled++;return x*x+y*y;}};const first=SurfaceRenderer.prototype.surfaceMesh.call(fake,76);assert.equal(first.length,77);assert.equal(first[0].length,77);assert.equal(sampled,77*77);assert.strictEqual(SurfaceRenderer.prototype.surfaceMesh.call(fake,76),first);assert.equal(sampled,77*77,'camera rotation must reuse surface samples');fake.field={range:2};assert.notStrictEqual(SurfaceRenderer.prototype.surfaceMesh.call(fake,76),first);assert.equal(sampled,2*77*77);});
+test('catalog previews use 3D renderer while preserving visibility-based lifecycle',()=>{const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');assert.match(source,/new SurfaceRenderer\(canvas,\{mode:'3d',field,preview:true/);assert.match(source,/new IntersectionObserver/);assert.match(source,/rec\.visible=false/);assert.match(source,/bounds:'stop'/);});
