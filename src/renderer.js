@@ -10,13 +10,13 @@ export class SurfaceRenderer{
     this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.showVectors=false;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
     this.yaw=0.68;this.pitch=0.73;this.zoom=1;
     this.onPlace=opts.onPlace;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
-    this.range=sampleRange(this.field,this.preview?32:64);this.cache=null;this.triangles=[];this.visible=true;
+    this.range=sampleRange(this.field,this.preview?32:64);this.cache=null;this.meshSamples=null;this.triangles=[];this.visible=true;this.pendingDraw=0;
     this.handleDown=e=>this.pointerDown(e);this.handleMove=e=>this.pointerMove(e);this.handleUp=e=>this.pointerUp(e);
     this.handleWheel=e=>{if(!this.preview){e.preventDefault();this.zoom=Math.max(0.6,Math.min(2.3,this.zoom*(e.deltaY>0?0.91:1.09)));this.invalidate();this.draw();}};
     this.canvas.addEventListener('pointerdown',this.handleDown);this.canvas.addEventListener('pointermove',this.handleMove);this.canvas.addEventListener('pointerup',this.handleUp);this.canvas.addEventListener('pointercancel',this.handleUp);this.canvas.addEventListener('wheel',this.handleWheel,{passive:false});
     this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(canvas);this.resize();
   }
-  destroy(){this.resizeObserver.disconnect();this.canvas.removeEventListener('pointerdown',this.handleDown);this.canvas.removeEventListener('pointermove',this.handleMove);this.canvas.removeEventListener('pointerup',this.handleUp);this.canvas.removeEventListener('pointercancel',this.handleUp);this.canvas.removeEventListener('wheel',this.handleWheel);}
+  destroy(){if(this.pendingDraw)cancelAnimationFrame(this.pendingDraw);this.resizeObserver.disconnect();this.canvas.removeEventListener('pointerdown',this.handleDown);this.canvas.removeEventListener('pointermove',this.handleMove);this.canvas.removeEventListener('pointerup',this.handleUp);this.canvas.removeEventListener('pointercancel',this.handleUp);this.canvas.removeEventListener('wheel',this.handleWheel);}
   resize(){
     const b=this.canvas.getBoundingClientRect();this.w=Math.max(80,b.width||360);this.h=Math.max(70,b.height||230);
     const dpr=Math.min(window.devicePixelRatio||1,this.preview?1.25:1.8);
@@ -24,7 +24,7 @@ export class SurfaceRenderer{
     if(this.canvas.width!==pw||this.canvas.height!==ph){this.canvas.width=pw;this.canvas.height=ph;}
     this.dpr=dpr;if(this.catalogPreview&&this.previewPath)this.previewFocus=previewCamera(this.previewPath,this.w,this.h);this.invalidate();this.draw();
   }
-  setField(field){this.field=field;this.range=sampleRange(field,this.preview?32:64);this.invalidate();this.draw();}
+  setField(field){this.field=field;this.range=sampleRange(field,this.preview?32:64);this.meshSamples=null;this.invalidate();this.draw();}
   setMode(mode){if(this.mode!==mode){this.mode=mode;this.invalidate();this.draw();}}
   setVectors(visible){this.showVectors=!!visible;this.draw();}
   setFrame(series,step){this.drawData=series||[];this.current=step||0;this.draw();}
@@ -92,11 +92,19 @@ export class SurfaceRenderer{
     if(!this.preview){g.strokeStyle='rgba(26,67,113,.14)';g.lineWidth=1;g.strokeRect(left,top,size,size);}
     g.restore();
   }
+  surfaceMesh(N){
+    if(this.meshSamples&&this.meshSamples.N===N&&this.meshSamples.field===this.field)return this.meshSamples.rows;
+    const r=this.field.range,rows=[];
+    for(let j=0;j<=N;j++){const row=[];for(let i=0;i<=N;i++){const x=-r+2*r*i/N,y=-r+2*r*j/N;row.push({x,y,z:this.heightAt(x,y)});}rows.push(row);}
+    this.meshSamples={N,field:this.field,rows};return rows;
+  }
+  requestDraw(){
+    if(this.pendingDraw)return;
+    this.pendingDraw=requestAnimationFrame(()=>{this.pendingDraw=0;this.draw();});
+  }
   draw3D(g){
-    const N=this.preview?36:(this.dragging?42:76),r=this.field.range,vertices=[];
-    for(let j=0;j<=N;j++){
-      const row=[];for(let i=0;i<=N;i++){const x=-r+2*r*i/N,y=-r+2*r*j/N,z=this.heightAt(x,y);row.push({...this.project(x,y,z),wx:x,wy:y,z});}vertices.push(row);
-    }
+    const N=this.preview?36:76,r=this.field.range;
+    const vertices=this.surfaceMesh(N).map(row=>row.map(p=>({...this.project(p.x,p.y,p.z),wx:p.x,wy:p.y,z:p.z})));
     const cells=[];this.triangles=[];
     const step=2*r/N;
     for(let j=0;j<N;j++)for(let i=0;i<N;i++){
@@ -183,12 +191,12 @@ export class SurfaceRenderer{
   pointerMove(e){
     if(!this.dragging)return;const dx=e.clientX-this.pointerX,dy=e.clientY-this.pointerY;
     if(Math.hypot(e.clientX-this.downX,e.clientY-this.downY)>5)this.dragMoved=true;
-    if(this.mode==='3d'&&this.dragMoved){this.yaw+=dx*0.008;this.pitch=Math.max(.22,Math.min(1.36,this.pitch+dy*.006));this.invalidate();this.draw();}
+    if(this.mode==='3d'&&this.dragMoved){this.yaw+=dx*0.008;this.pitch=Math.max(.22,Math.min(1.36,this.pitch+dy*.006));this.invalidate();this.requestDraw();}
     this.pointerX=e.clientX;this.pointerY=e.clientY;
   }
   pointerUp(e){
     if(!this.dragging)return;this.dragging=false;
-    if(this.dragMoved&&this.mode==='3d'){this.invalidate();this.draw();}
+    if(this.dragMoved&&this.mode==='3d'){if(this.pendingDraw){cancelAnimationFrame(this.pendingDraw);this.pendingDraw=0;}this.invalidate();this.draw();}
     if(!this.dragMoved&&this.onPlace){const r=this.canvas.getBoundingClientRect();const picked=this.pick(e.clientX-r.left,e.clientY-r.top);if(picked)this.onPlace(picked);}
   }
 }
