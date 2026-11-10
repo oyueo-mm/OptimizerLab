@@ -140,8 +140,10 @@ export class SurfaceRenderer{
       const t=Math.max(0,Math.min(step,points.length-1)),whole=Math.floor(t),frac=t-whole;
       const now=whole<points.length-1?{x:interpolate(points[whole].x,points[whole+1].x,frac),y:interpolate(points[whole].y,points[whole+1].y,frac)}:points[whole];
       g.save();const lineWidth=this.catalogPreview?3.5:this.preview?2.9:3.5;g.lineJoin='round';g.lineCap='round';g.globalAlpha=1;g.beginPath();
-      for(let j=0;j<=whole;j++){const p=this.toScreen(points[j]);if(j===0)g.moveTo(p.x,p.y);else g.lineTo(p.x,p.y);}
-      if(frac>0){const pos=this.toScreen(now);g.lineTo(pos.x,pos.y);}
+      const trace=(from,to)=>{const distance=Math.hypot(to.x-from.x,to.y-from.y),segments=this.mode==='3d'?Math.min(28,Math.max(1,Math.ceil(distance/(this.field.range*.055)))):1;for(let k=1;k<=segments;k++){const u=k/segments,p=this.toScreen({x:interpolate(from.x,to.x,u),y:interpolate(from.y,to.y,u)});g.lineTo(p.x,p.y);}};
+      const start=this.toScreen(points[0]);g.moveTo(start.x,start.y);
+      for(let j=1;j<=whole;j++)trace(points[j-1],points[j]);
+      if(frac>0)trace(points[whole],now);
       g.strokeStyle='rgba(12,26,42,.82)';g.lineWidth=lineWidth+3.3;g.shadowBlur=0;g.stroke();g.strokeStyle=col;g.lineWidth=lineWidth;g.shadowColor=col;g.shadowBlur=this.preview?1:4;g.stroke();g.shadowBlur=0;
       if(this.showVectors&&!this.preview){
         const gradVec=gradient(this.field.fn,now.x,now.y),mag=Math.hypot(...gradVec);
@@ -149,7 +151,7 @@ export class SurfaceRenderer{
         const origin=this.toScreen(now);
         const arrow=(vec,length,color)=>{
           const n=Math.hypot(...vec);if(n<1e-9)return;
-          const dest=this.toScreen({x:now.x+vec[0]/n*length,y:now.y+vec[1]/n*length});
+          const r=this.field.range,dest=this.toScreen({x:Math.max(-r,Math.min(r,now.x+vec[0]/n*length)),y:Math.max(-r,Math.min(r,now.y+vec[1]/n*length))});
           const vx=dest.x-origin.x,vy=dest.y-origin.y,d=Math.hypot(vx,vy);if(d<3)return;
           const ux=vx/d,uy=vy/d;
           g.beginPath();g.moveTo(origin.x,origin.y);g.lineTo(dest.x,dest.y);g.moveTo(dest.x,dest.y);g.lineTo(dest.x-9*ux-4*uy,dest.y-9*uy+4*ux);g.moveTo(dest.x,dest.y);g.lineTo(dest.x-9*ux+4*uy,dest.y-9*uy-4*ux);
