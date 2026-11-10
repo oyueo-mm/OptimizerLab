@@ -88,7 +88,7 @@ function compare(){
   const draft=state.compareDraft||state.compare;
   const rows=series.map(s=>{const last=s.history.at(-1)||{};return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(last.loss)+'</td><td>'+(s.history.length-1)+'</td><td>'+({complete:'완료',converged:'수렴',diverged:'발산',out_of_bounds:'범위 이탈'}[s.status]||'—')+'</td></tr>';}).join('');
   const choices=OPTIMIZERS.map(a=>{const index=draft.indexOf(a.id),selected=index>=0;return '<button type="button" '+(!selected&&draft.length>=MAX_COMPARE?'disabled ':'')+'class="compare-pill '+(selected?'active':'')+'" data-compare="'+a.id+'" aria-pressed="'+selected+'"><span class="bullet" style="background:'+(selected?COMPARE_COLORS[index]:a.color)+'"></span><span class="compare-name">'+a.name+'</span><span class="compare-check">'+(selected?'✓':'')+'</span></button>';}).join('');
-  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+draft.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div><div class="compare-actions"><span class="compare-note">최대 '+MAX_COMPARE+'개 선택 · 적용 전까지 비교 결과 유지</span><button type="button" class="btn" data-compare-cancel>취소</button><button type="button" class="btn primary" data-compare-apply>적용</button></div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
+  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras"><details class="compare-choices"><summary>비교 알고리즘 선택 ('+draft.length+'/'+MAX_COMPARE+')</summary><div class="compare-selection">'+choices+'</div><p class="compare-error" data-compare-error role="alert" hidden>비교할 알고리즘을 최소 1개 선택해 주세요.</p><div class="compare-actions"><span class="compare-note">최대 '+MAX_COMPARE+'개 선택 · 적용 전까지 비교 결과 유지</span><button type="button" class="btn" data-compare-cancel>취소</button><button type="button" class="btn primary" data-compare-apply>적용</button></div></details>'+metrics()+'<article class="info-panel"><h3>최종 단계 비교</h3><table class="compare-results"><thead><tr><th>옵티마이저</th><th>손실값</th><th>단계</th><th>상태</th></tr></thead><tbody>'+rows+'</tbody></table></article></div>';
 }
 function lineage(){
   const rows=[['sgd'],['momentum','adagrad','rmsprop'],['nesterov','adam','adadelta'],['nadam','adamw','adamax','amsgrad','lion']];
@@ -219,8 +219,9 @@ function chooseCompareDraft(id){
   if(state.page!=='compare')return;
   const draft=state.compareDraft??(state.compareDraft=[...state.compare]);
   const index=draft.indexOf(id);
-  if(index>=0){if(draft.length<=1)return;draft.splice(index,1);}
+  if(index>=0)draft.splice(index,1);
   else if(draft.length<MAX_COMPARE)draft.push(id);
+  const error=$('[data-compare-error]');if(error)error.hidden=true;
   syncComparePicker();
 }
 function cancelCompareDraft(){
@@ -231,6 +232,7 @@ function cancelCompareDraft(){
 function applyCompareDraft(){
   if(state.page!=='compare')return;
   const draft=state.compareDraft||state.compare;
+  if(draft.length===0){const error=$('[data-compare-error]');if(error)error.hidden=false;return;}
   const changed=draft.length!==state.compare.length||draft.some((id,i)=>id!==state.compare[i]);
   state.compare=[...draft];state.compareDraft=null;
   if(changed){render();window.scrollTo({top:0,behavior:'instant'});}
