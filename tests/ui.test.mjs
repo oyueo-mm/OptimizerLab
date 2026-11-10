@@ -84,7 +84,7 @@ test('the application boots into the four-card home without a browser dependency
   press([],{nav:'compare'});
   press([],{nav:'experiment'});
   assert.match(root.innerHTML,/class="visual-landscape">단층 미로<\/span>/,'cancel retains the immediately applied map');
-  assert.match(root.innerHTML,/value="adam" selected/,'cancel discards the draft optimizer');
+  assert.match(root.innerHTML,/value="sgd" selected/,'cancel discards the draft optimizer');
   press(['data-settings-toggle']);
   handlers.change({target:{matches:q=>q==='select[data-setting]',dataset:{setting:'optimizer'},value:'rmsprop'}});
   handlers.change({target:{matches:q=>q==='select[data-setting]',dataset:{setting:'landscape'},value:'chaosTerrain'}});
