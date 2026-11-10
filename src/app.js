@@ -1,6 +1,7 @@
 import {OPTIMIZERS,LANDSCAPES,getOptimizer,getLandscape,simulate} from './engine.js';
 import {SurfaceRenderer} from './renderer.js';
 import {activePreviewEnd,previewFrame,homePreviewChoice} from './preview.js';
+import {homePreviewStart} from './home-starts.js';
 const $=s=>document.querySelector(s);
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number=n=>Number.isFinite(n)?Math.abs(n)>=100?n.toFixed(1):Math.abs(n)>=1?n.toFixed(3):n.toFixed(5):'—';
@@ -106,7 +107,7 @@ function destroyRenderers(){
 function homePreviewSimulation(algorithmId,landscapeId){
   const algorithm=getOptimizer(algorithmId),field=getLandscape(landscapeId);
   const lr=Math.min(algorithm.defaults.lr,['adam','adamw'].includes(algorithmId)?Math.max(.04,field.lr*2):Math.max(.018,field.lr));
-  const result=simulate(algorithm.id,field,field.start,{lr,steps:100,bounds:'stop'});
+  const result=simulate(algorithm.id,field,homePreviewStart(algorithm.id,field),{lr,steps:100,bounds:'stop'});
   return {algorithm,field,series:[{...result,color:algorithm.color}],end:activePreviewEnd(result.history)};
 }
 function rotateHomePreview(rec){
@@ -127,11 +128,11 @@ function mountPreview(){
     let rec=renderers.find(r=>r.canvas===canvas);
     if(rec){rec.visible=true;return;}
     const id=canvas.dataset.preview,field=getLandscape(canvas.dataset.previewLand||'wavy'),algo=getOptimizer(id);
-    const lr=catalog?Math.min(algo.defaults.lr,field.lr*2):Math.min(algo.defaults.lr,['adam','adamw'].includes(id)?Math.max(.04,field.lr*2):Math.max(.018,field.lr));
-    const trajectory=simulate(id,field,field.start,{lr,steps:catalog?120:100,bounds:'stop'});
-    const end=activePreviewEnd(trajectory.history);
+    const lr=Math.min(algo.defaults.lr,field.lr*2);
+    const simulation=catalog?simulate(id,field,field.start,{lr,steps:120,bounds:'stop'}):homePreviewSimulation(id,field.id);
+    const trajectory=catalog?simulation:simulation.series[0],end=catalog?activePreviewEnd(trajectory.history):simulation.end;
     const renderer=new SurfaceRenderer(canvas,{mode:'3d',field,preview:true,previewKind:catalog?'catalog':'home'});
-    rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,homeSlot:catalog?null:Number(canvas.dataset.homeSlot),homeTurn:0,series:[{...trajectory,color:algo.color}]};
+    rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,homeSlot:catalog?null:Number(canvas.dataset.homeSlot),homeTurn:0,series:catalog?[{...trajectory,color:algo.color}]:simulation.series};
     renderers.push(rec);
     renderer.setFrame(rec.series,prefersReduced?end:0);
   }
