@@ -1,6 +1,6 @@
 import {OPTIMIZERS,LANDSCAPES,getOptimizer,getLandscape,simulate} from './engine.js';
 import {SurfaceRenderer} from './renderer.js';
-import {activePreviewEnd,previewFrame} from './preview.js';
+import {activePreviewEnd,previewFrame,homePreviewChoice} from './preview.js';
 const $=s=>document.querySelector(s);
 const safe=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number=n=>Number.isFinite(n)?Math.abs(n)>=100?n.toFixed(1):Math.abs(n)>=1?n.toFixed(3):n.toFixed(5):'—';
@@ -9,6 +9,11 @@ const DEFAULT_COMP=['sgd','momentum','nesterov','adagrad','adam','adamw'];
 const MAX_COMPARE=6;
 const COMPARE_COLORS=['#2563eb','#ea8b35','#8b5cf6','#0891b2','#16a34a','#db2777'];
 const SETTINGS_KEYS=['optimizer','landscape','lr','momentum','beta1','beta2','weightDecay','steps','speed'];
+const HOME_FIRST_ALGORITHMS=['sgd','momentum','adamw','adam'];
+const HOME_FIRST_MAPS=['erosionMountains','twistedCanyon','falseBasin','isolatedWells'];
+const HOME_ALGORITHMS=[...HOME_FIRST_ALGORITHMS,...OPTIMIZERS.map(a=>a.id).filter(id=>!HOME_FIRST_ALGORITHMS.includes(id))];
+const HOME_MAPS=[...HOME_FIRST_MAPS,...LANDSCAPES.map(f=>f.id).filter(id=>!HOME_FIRST_MAPS.includes(id))];
+const HOME_MOVE_SECONDS=4.2,HOME_HOLD_SECONDS=.7;
 const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,settingsDraft:null,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP],compareDraft:null};
 const prefersReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let renderers=[],series=[],lastTime=0,lastPreview=0,previewTime=0,observer=null;
@@ -32,8 +37,7 @@ function appChrome(content){
   return '<div class="app-shell"><aside class="sidebar '+(state.sidebar?'collapsed ':'')+(state.mobile?'open':'')+'"><div class="brand"><span class="brand-icon">O</span><span class="brand-title">OptimizerLab</span><button class="sidebar-collapse" data-sidebar title="사이드바 접기/펼치기" aria-label="사이드바 접기/펼치기">'+(state.sidebar?'›':'‹')+'</button></div><nav>'+nav+'</nav></aside><main class="main">'+top+'<div class="page '+(compact?'workspace-page':'')+'">'+mobile+content+'</div></main></div>';
 }
 function home(){
-  const cards=['sgd','momentum','adamw','adam'];
-  return '<section class="home"><div class="home-copy"><h1>OptimizerLab</h1><p class="lead">옵티마이저 도감</p></div><div class="home-showcase">'+cards.map((id,i)=>{const a=getOptimizer(id);return '<button class="hero-card" data-open="'+id+'"><h3>'+a.name+'</h3><canvas data-preview="'+id+'" data-preview-land="'+['erosionMountains','twistedCanyon','falseBasin','isolatedWells'][i]+'" aria-label="'+a.name+' 궤적 미리보기"></canvas></button>';}).join('')+'</div></section>';
+  return '<section class="home"><div class="home-copy"><h1>OptimizerLab</h1><p class="lead">옵티마이저 도감</p></div><div class="home-showcase">'+HOME_FIRST_ALGORITHMS.map((unused,i)=>{const choice=homePreviewChoice(i,0,HOME_ALGORITHMS,HOME_MAPS),a=getOptimizer(choice.optimizerId),field=getLandscape(choice.landscapeId);return '<button class="hero-card" data-open="'+a.id+'"><div class="hero-card-heading"><h3>'+safe(a.name)+'</h3><span class="hero-map-name">'+safe(field.name)+'</span></div><canvas data-preview="'+a.id+'" data-preview-land="'+field.id+'" data-home-slot="'+i+'" aria-label="'+safe(a.name+' / '+field.name)+' 3D 궤적 미리보기"></canvas></button>';}).join('')+'</div></section>';
 }
 function catalogCard(a){
   return '<button class="catalog-card" data-open="'+a.id+'"><canvas data-preview="'+a.id+'" data-preview-land="wavy" aria-label="'+a.name+' 애니메이션"></canvas><div class="catalog-name">'+a.name+'</div></button>';
@@ -99,6 +103,22 @@ function destroyRenderers(){
   if(observer){observer.disconnect();observer=null;}
   for(const rec of renderers)rec.renderer.destroy();renderers=[];
 }
+function homePreviewSimulation(algorithmId,landscapeId){
+  const algorithm=getOptimizer(algorithmId),field=getLandscape(landscapeId);
+  const lr=Math.min(algorithm.defaults.lr,['adam','adamw'].includes(algorithmId)?Math.max(.04,field.lr*2):Math.max(.018,field.lr));
+  const result=simulate(algorithm.id,field,field.start,{lr,steps:100,bounds:'stop'});
+  return {algorithm,field,series:[{...result,color:algorithm.color}],end:activePreviewEnd(result.history)};
+}
+function rotateHomePreview(rec){
+  const choice=homePreviewChoice(rec.homeSlot,rec.homeTurn,HOME_ALGORITHMS,HOME_MAPS);
+  const next=homePreviewSimulation(choice.optimizerId,choice.landscapeId);
+  rec.activeEnd=next.end;rec.series=next.series;
+  rec.canvas.dataset.preview=next.algorithm.id;rec.canvas.dataset.previewLand=next.field.id;
+  rec.canvas.setAttribute('aria-label',next.algorithm.name+' / '+next.field.name+' 3D 궤적 미리보기');
+  const card=rec.canvas.closest('.hero-card');
+  if(card){card.dataset.open=next.algorithm.id;const name=card.querySelector('h3'),map=card.querySelector('.hero-map-name');if(name)name.textContent=next.algorithm.name;if(map)map.textContent=next.field.name;}
+  rec.renderer.setScene(next.field,rec.series,0);
+}
 function mountPreview(){
   const canvases=[...document.querySelectorAll('[data-preview]')];
   if(!canvases.length)return;
@@ -111,8 +131,7 @@ function mountPreview(){
     const trajectory=simulate(id,field,field.start,{lr,steps:catalog?120:100,bounds:'stop'});
     const end=activePreviewEnd(trajectory.history);
     const renderer=new SurfaceRenderer(canvas,{mode:'3d',field,preview:true,previewKind:catalog?'catalog':'home'});
-    // Every catalog card now shows the complete 3D surface, not a 2D cropped contour.
-    rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,series:[{...trajectory,color:algo.color}]};
+    rec={renderer,canvas,visible:true,preview:true,catalog,activeEnd:end,elapsed:0,homeSlot:catalog?null:Number(canvas.dataset.homeSlot),homeTurn:0,series:[{...trajectory,color:algo.color}]};
     renderers.push(rec);
     renderer.setFrame(rec.series,prefersReduced?end:0);
   }
@@ -292,7 +311,12 @@ function tick(now){
       for(const rec of renderers){
         if(!rec.preview||!rec.visible||used>=(rec.catalog?20:8))continue;
         rec.elapsed+=elapsed;
-        rec.renderer.setFrame(rec.series,rec.catalog?previewFrame(rec.elapsed,rec.activeEnd):previewFrame(rec.elapsed,rec.activeEnd,4.2,.35));
+        if(rec.catalog)rec.renderer.setFrame(rec.series,previewFrame(rec.elapsed,rec.activeEnd));
+        else{
+          const hold=HOME_HOLD_SECONDS+rec.homeSlot*.45,duration=HOME_MOVE_SECONDS+hold;
+          if(rec.elapsed>=duration){rec.elapsed%=duration;rec.homeTurn++;rotateHomePreview(rec);}
+          rec.renderer.setFrame(rec.series,previewFrame(rec.elapsed,rec.activeEnd,HOME_MOVE_SECONDS,hold));
+        }
         used++;
       }
     }
