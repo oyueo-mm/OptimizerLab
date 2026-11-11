@@ -93,11 +93,12 @@ function catalog(){
 function visual(){
   const field=getLandscape(state.landscape),detail=state.page==='detail';
   const title=detail?getOptimizer(state.optimizer).name:state.page==='compare'?'비교':'실험실';
+  const balls=multiBallMode()?'<span class="ball-count" data-ball-count aria-live="polite">공 '+state.balls.length+'/'+MAX_BALLS+'</span>':'';
   const back=detail?'<button class="btn tiny workspace-back" data-nav="catalog" title="도감으로 돌아가기">← 도감</button>':'';
   const compare=detail||state.page==='experiment'?'<button class="btn tiny workspace-compare" data-nav="compare" title="옵티마이저 비교하기">비교</button>':'';
   const menu='<button class="btn ghost icon mobile-menu workspace-mobile" data-mobile aria-label="메뉴 열기">☰</button>';
   const legend=state.page==='compare'?'<div id="legend" class="legend">'+series.map(s=>'<span class="legend-item"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</span>').join('')+'</div>':'<div id="legend" class="legend" hidden></div>';
-  return '<section class="visual-panel"><div class="visual-top">'+menu+back+'<div class="workspace-heading"><span class="visual-title">'+safe(title)+'</span><span class="visual-landscape">'+safe(field.name)+'</span></div><div class="workspace-actions">'+compare+'<button class="btn tiny" data-vectors title="기울기 및 업데이트 방향 보기" aria-pressed="'+state.vectors+'">벡터'+(state.vectors?' ✓':'')+'</button><button class="btn tiny settings-toggle" data-settings-toggle aria-controls="settings-overlay" aria-expanded="'+state.settingsOpen+'" title="시뮬레이션 설정 열기">⚙ 설정</button><div class="toggle" role="group" aria-label="시각화 모드"><button data-mode="2d" class="'+(state.mode==='2d'?'active':'')+'">2D</button><button data-mode="3d" class="'+(state.mode==='3d'?'active':'')+'">3D</button></div></div></div><div class="canvas-wrap"><canvas id="main-canvas" title="'+(state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대')+'" aria-label="시작점을 클릭으로 배치하는 최적화 손실 지형"></canvas><div class="canvas-corner"><button class="floating-button" data-fullscreen title="캔버스 전체 화면" aria-label="캔버스 전체 화면">⛶</button><button class="floating-button" data-camera="reset" title="카메라 초기화" aria-label="카메라 초기화">⤾</button></div></div>'+legend+'<div class="playbar"><button data-reset title="처음으로" aria-label="처음으로">↺</button><button data-prev title="한 단계 뒤로" aria-label="한 단계 뒤로">⟨</button><button class="play" data-play title="재생/일시정지" aria-label="재생/일시정지">'+(state.playing?'Ⅱ':'▶')+'</button><button data-next title="한 단계 앞으로" aria-label="한 단계 앞으로">⟩</button><input type="range" data-frame min="0" max="'+maxStep()+'" value="'+Math.floor(state.position)+'" aria-label="단계 위치"><span class="steps" data-step-label>0 / '+maxStep()+'</span></div></section>';
+  return '<section class="visual-panel"><div class="visual-top">'+menu+back+'<div class="workspace-heading"><span class="visual-title">'+safe(title)+'</span><span class="visual-landscape">'+safe(field.name)+'</span>'+balls+'</div><div class="workspace-actions">'+compare+'<button class="btn tiny" data-vectors title="기울기 및 업데이트 방향 보기" aria-pressed="'+state.vectors+'">벡터'+(state.vectors?' ✓':'')+'</button><button class="btn tiny settings-toggle" data-settings-toggle aria-controls="settings-overlay" aria-expanded="'+state.settingsOpen+'" title="시뮬레이션 설정 열기">⚙ 설정</button><div class="toggle" role="group" aria-label="시각화 모드"><button data-mode="2d" class="'+(state.mode==='2d'?'active':'')+'">2D</button><button data-mode="3d" class="'+(state.mode==='3d'?'active':'')+'">3D</button></div></div></div><div class="canvas-wrap"><canvas id="main-canvas" title="'+(multiBallMode()?'빈 곳 클릭: 공 추가 · 공 드래그: 이동 · 공 우클릭: 삭제 · 빈 곳 드래그: 회전':state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대')+'" aria-label="'+(multiBallMode()?'공 추가, 공 이동, 공 삭제가 가능한 손실 지형':'시작점을 클릭으로 배치하는 최적화 손실 지형')+'"></canvas><div class="canvas-corner"><button class="floating-button" data-fullscreen title="캔버스 전체 화면" aria-label="캔버스 전체 화면">⛶</button><button class="floating-button" data-camera="reset" title="카메라 초기화" aria-label="카메라 초기화">⤾</button></div></div>'+legend+'<div class="playbar"><button data-reset title="처음으로" aria-label="처음으로">↺</button><button data-prev title="한 단계 뒤로" aria-label="한 단계 뒤로">⟨</button><button class="play" data-play title="재생/일시정지" aria-label="재생/일시정지"'+(multiBallMode()&&state.balls.length===0?' disabled':'')+'>'+(state.playing?'Ⅱ':'▶')+'</button><button data-next title="한 단계 앞으로" aria-label="한 단계 앞으로">⟩</button><input type="range" data-frame min="0" max="'+maxStep()+'" value="'+Math.floor(state.position)+'" aria-label="단계 위치"><span class="steps" data-step-label>0 / '+maxStep()+'</span></div></section>';
 }
 function settings(){
   const form=state.settingsDraft||state;
@@ -107,10 +108,10 @@ function metrics(){
   return '<div class="metrics"><div class="metric-panel"><div class="metric-label">현재 손실값</div><div class="metric-number" data-metric="loss">—</div></div><div class="metric-panel"><div class="metric-label">기울기 크기</div><div class="metric-number" data-metric="gradient">—</div></div><div class="metric-panel"><div class="metric-label">현재 단계</div><div class="metric-number" data-metric="step">0</div></div></div><div class="loss-panel"><div class="loss-panel-heading">손실 변화</div><canvas id="loss-canvas" aria-label="손실값 변화 그래프"></canvas></div>';
 }
 function drawLossChart(){
-  const canvas=$('#loss-canvas');if(!canvas||!series.length)return;
+  const canvas=$('#loss-canvas');if(!canvas)return;
   const width=Math.max(200,canvas.clientWidth||200),height=Math.max(90,canvas.clientHeight||90),dpr=Math.min(window.devicePixelRatio||1,2);
   if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}
-  const g=canvas.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,width,height);
+  const g=canvas.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,width,height);if(!series.length)return;
   const values=series.flatMap(s=>s.history.map(p=>p.loss)).filter(Number.isFinite);if(!values.length)return;
   const lower=Math.min(...values),upper=Math.max(...values),span=Math.max(1e-8,upper-lower),left=9,right=width-10,top=9,bottom=height-13;
   const x=i=>left+i/Math.max(1,maxStep())*(right-left),y=v=>bottom-(v-lower)/span*(bottom-top);
@@ -126,10 +127,10 @@ function drawLossChart(){
 }
 function details(){
   const a=getOptimizer(state.optimizer);
-  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras">'+metrics()+'<article class="info-panel"><h3>작동 원리</h3><p>'+a.description+'</p><div class="formula">'+safe(a.formula)+'</div></article></div>';
+  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras">'+metrics()+ballResults()+'<article class="info-panel"><h3>작동 원리</h3><p>'+a.description+'</p><div class="formula">'+safe(a.formula)+'</div></article></div>';
 }
 function experiment(){
-  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras">'+metrics()+'</div>';
+  return '<div class="workspace-stage"><div class="work-grid"><div>'+visual()+'</div>'+settings()+'</div></div><div class="workspace-extras">'+metrics()+ballResults()+'</div>';
 }
 function compare(){
   const draft=state.compareDraft||state.compare;
@@ -185,8 +186,9 @@ function mountPreview(){
 }
 function mountMain(){
   const canvas=$('#main-canvas');if(!canvas)return;
-  const renderer=new SurfaceRenderer(canvas,{mode:state.mode,field:getLandscape(state.landscape),onPlace:pt=>{state.start=pt;recompute();redraw();const root=$('#legend');if(root)root.innerHTML=series.map(s=>'<span class="legend-item"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</span>').join('');}});
-  renderers.push({renderer,canvas,preview:false,visible:true});renderer.showVectors=state.vectors;renderer.setFrame(series,state.position);updateMetrics();
+  const onPlace=pt=>{state.start=pt;recompute();redraw();const root=$('#legend');if(root)root.innerHTML=series.map(s=>'<span class="legend-item"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</span>').join('');};
+  const renderer=new SurfaceRenderer(canvas,{mode:state.mode,field:getLandscape(state.landscape),onPlace:multiBallMode()?null:onPlace,multiBall:multiBallMode()?{onAdd:addBall,onSelect:selectBall,onMove:moveBall,onDelete:deleteBall}:null});
+  renderers.push({renderer,canvas,preview:false,visible:true});renderer.showVectors=state.vectors;renderer.selectedBallId=multiBallMode()?state.selectedBallId:null;renderer.setFrame(series,state.position);updateMetrics();
 }
 function render(){
   destroyRenderers();if(state.page==='experiment'||state.page==='compare'||state.page==='detail')recompute();
@@ -197,14 +199,14 @@ function redraw(){
   const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.setFrame(series,state.position);
   const slider=$('[data-frame]');if(slider){slider.max=String(maxStep());slider.value=String(Math.floor(state.position));}
   const label=$('[data-step-label]');if(label)label.textContent=Math.floor(state.position)+' / '+maxStep();
-  const play=$('[data-play]');if(play)play.textContent=state.playing?'Ⅱ':'▶';
+  const play=$('[data-play]');if(play){play.textContent=state.playing?'Ⅱ':'▶';if(multiBallMode())play.disabled=series.length===0;}
   updateMetrics();
 }
 function updateMetrics(){
-  const s=series[0];if(!s)return;
-  const step=Math.min(Math.floor(state.position),s.history.length-1);
-  const p=s.history[step]||s.history[0];if(!p)return;
-  for(const [type,value] of [['loss',number(p.loss)],['gradient',number(p.norm)],['step',String(step)]]){const el=$('[data-metric="'+type+'"]');if(el)el.textContent=value;}
+  const s=multiBallMode()&&state.selectedBallId!=null?series.find(v=>v.ballId===state.selectedBallId)||series[0]:series[0];
+  const step=s?Math.min(Math.floor(state.position),s.history.length-1):0;
+  const p=s?s.history[step]||s.history[0]:null;
+  for(const [type,value] of [['loss',p?number(p.loss):'—'],['gradient',p?number(p.norm):'—'],['step',p?String(step):'0']]){const el=$('[data-metric="'+type+'"]');if(el)el.textContent=value;}
   drawLossChart();
 }
 function changeView(view){
