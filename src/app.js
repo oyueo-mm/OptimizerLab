@@ -337,7 +337,7 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{const t=e.target;if(t.matches('select[data-setting]'))updateSetting(t.dataset.setting,t.value);});
 window.addEventListener('keydown',e=>{
-  if(e.code==='Space'&&!['INPUT','SELECT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName)&&(state.page==='experiment'||state.page==='detail'||state.page==='compare')){e.preventDefault();state.playing=!state.playing;redraw();}
+  if(e.code==='Space'&&!['INPUT','SELECT','TEXTAREA','BUTTON'].includes(document.activeElement?.tagName)&&(state.page==='experiment'||state.page==='detail'||state.page==='compare')&&(!multiBallMode()||series.length>0)){e.preventDefault();state.playing=!state.playing;redraw();}
   if(e.code==='Escape'&&state.settingsOpen){setSettingsOpen(false);return;}
   if(e.code==='Escape'&&state.mobile){state.mobile=false;render();return;}
   if(e.code==='Escape'&&multiBallMode()&&state.selectedBallId!=null){selectBall(null);return;}
