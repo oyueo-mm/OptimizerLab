@@ -133,3 +133,17 @@
 .hero-card-heading h3{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .hero-map-name{font-size:10px;color:#8898aa;white-space:nowrap;max-width:43%;overflow:hidden;text-overflow:ellipsis;flex-shrink:1}
 @media(max-width:570px){.hero-card-heading{gap:5px}.hero-map-name{font-size:9px;max-width:47%}}
+
+/* Multi-start simulations: compact count, minimal selection chrome, collapsed outcomes. */
+.workspace-heading .ball-count{margin-left:2px;border:1px solid #e1e8f0;background:#f5f8fc;border-radius:999px;padding:3px 8px;font-size:10px;line-height:1.45;flex-shrink:0;color:#5f7590;font-weight:650;font-variant-numeric:tabular-nums}
+.playbar button.play:disabled{opacity:.38;cursor:not-allowed;background:#7b93ab}
+.ball-results{border:1px solid var(--border);background:#fff;border-radius:13px;margin-top:12px;overflow:hidden}
+.ball-results summary{cursor:pointer;padding:13px 16px;color:#5d7086;font-size:12px;font-weight:650}
+.ball-results[open] summary{border-bottom:1px solid #edf1f6}
+.ball-results-inner{padding:4px 14px 12px;overflow-x:auto}
+.ball-results table{border-collapse:collapse;width:100%;font-size:11px;color:#51657a;font-variant-numeric:tabular-nums}
+.ball-results th,.ball-results td{padding:11px 9px;text-align:left;border-bottom:1px solid #eff3f7;white-space:nowrap}
+.ball-results tr:last-child td{border-bottom:0}
+.ball-results th{font-weight:600;color:#90a0af}
+.ball-empty-result{color:#8898aa;font-size:11px;margin:8px 4px 4px}
+@media(max-width:570px){.workspace-heading .ball-count{padding:2px 6px;font-size:9px;margin-left:auto}.ball-results summary{padding:12px}}
