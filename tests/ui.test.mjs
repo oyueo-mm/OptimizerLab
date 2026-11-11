@@ -34,6 +34,9 @@ test('the application boots into the four-card home without a browser dependency
   const press=(attributes,dataset={})=>handlers.click({target:{closest:()=>({dataset,hasAttribute:(name)=>attributes.includes(name)})}});
   press([],{nav:'experiment'});
   assert.match(root.innerHTML,/class="page workspace-page"/);
+  assert.match(root.innerHTML,/data-ball-count[^>]*>공 1\/8<\/span>/,'experiment begins with one ball');
+  assert.match(root.innerHTML,/시작점별 결과 \(1\)/,'initial ball outcomes are collapsed below metrics');
+  assert.match(root.innerHTML,/data-metric="loss"/);
   assert.match(root.innerHTML,/class="workspace-stage"/);
   assert.doesNotMatch(root.innerHTML,/class="page-header"|class="topbar"|class="canvas-hint"/);
   assert.ok(root.innerHTML.indexOf('class="playbar"')<root.innerHTML.indexOf('class="workspace-extras"'),'playback controls must remain in the first viewport');
@@ -48,10 +51,12 @@ test('the application boots into the four-card home without a browser dependency
   assert.equal(toggle.attributes['aria-expanded'],'false');
   press([],{open:'sgd'});
   assert.match(root.innerHTML,/class="visual-title">SGD<\/span>/);
+  assert.match(root.innerHTML,/data-ball-count[^>]*>공 1\/8<\/span>/,'catalog detail supports multiple starts');
   assert.equal((root.innerHTML.match(/class="visual-title"/g)||[]).length,1,'detail page shows one title');
   assert.doesNotMatch(root.innerHTML,/class="page-header"|class="topbar"/);
   press([],{nav:'compare'});
   assert.match(root.innerHTML,/class="compare-choices"/);
+  assert.doesNotMatch(root.innerHTML,/data-ball-count/,'optimizer comparison does not use the multi-ball canvas');
   assert.match(root.innerHTML,/비교 알고리즘 선택 \(6\/6\)/);
   assert.match(root.innerHTML,/disabled class="compare-pill/,'unselected optimizers disabled at cap');
   assert.equal((root.innerHTML.match(/class="legend-item"/g)||[]).length,6,'six trajectories appear in legend');
