@@ -8,6 +8,8 @@ const number=n=>Number.isFinite(n)?Math.abs(n)>=100?n.toFixed(1):Math.abs(n)>=1?
 const navItems=[['home','⌂','홈'],['catalog','▦','도감'],['experiment','◉','실험실'],['compare','◫','비교'],['lineage','⌁','계보']];
 const DEFAULT_COMP=['sgd','momentum','nesterov','adagrad','adam','adamw'];
 const MAX_COMPARE=6;
+const MAX_BALLS=8;
+const BALL_COLORS=['#347ef2','#ee8e35','#159b89','#a855d5','#dc4583','#d0a322','#00a6bf','#c45f47'];
 const COMPARE_COLORS=['#2563eb','#ea8b35','#8b5cf6','#0891b2','#16a34a','#db2777'];
 const SETTINGS_KEYS=['optimizer','landscape','lr','momentum','beta1','beta2','weightDecay','steps','speed'];
 const HOME_FIRST_ALGORITHMS=['sgd','momentum','adamw','adam'];
@@ -15,14 +17,54 @@ const HOME_FIRST_MAPS=['erosionMountains','twistedCanyon','falseBasin','isolated
 const HOME_ALGORITHMS=[...HOME_FIRST_ALGORITHMS,...OPTIMIZERS.map(a=>a.id).filter(id=>!HOME_FIRST_ALGORITHMS.includes(id))];
 const HOME_MAPS=[...HOME_FIRST_MAPS,...LANDSCAPES.map(f=>f.id).filter(id=>!HOME_FIRST_MAPS.includes(id))];
 const HOME_MOVE_SECONDS=4.2,HOME_HOLD_SECONDS=.7;
-const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,settingsDraft:null,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP],compareDraft:null};
+const state={page:'home',sidebar:false,mobile:false,mode:'3d',optimizer:'adam',landscape:'wavy',start:{...LANDSCAPES[0].start},lr:getOptimizer('adam').defaults.lr,momentum:0.9,beta1:0.9,beta2:0.999,weightDecay:0.01,steps:180,speed:18,vectors:false,settingsOpen:false,settingsDraft:null,position:0,playing:false,filter:'전체',query:'',compare:[...DEFAULT_COMP],compareDraft:null,balls:[{id:1,...LANDSCAPES[0].start}],selectedBallId:null};
 const prefersReduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let renderers=[],series=[],lastTime=0,lastPreview=0,previewTime=0,observer=null;
 const choice=(a,b,selected)=>'<option value="'+a+'"'+(a===selected?' selected':'')+'>'+safe(b)+'</option>';
 function getOptions(override={}){return {lr:state.lr,momentum:state.momentum,beta1:state.beta1,beta2:state.beta2,weightDecay:state.weightDecay,steps:state.steps,bounds:'stop',...override};}
+const multiBallMode=()=>state.page==='experiment'||state.page==='detail';
+function renderBallRows(){return series.map(s=>{const p=s.history.at(-1)||{},first=s.history[0]||{},status={complete:'완료',converged:'수렴',diverged:'발산',out_of_bounds:'범위 이탈'}[s.status]||'—';return '<tr><td><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</td><td>'+number(first.loss)+'</td><td>'+number(p.loss)+'</td><td>'+status+'</td></tr>';}).join('');}
+function ballResults(){return '<details class="ball-results"><summary>시작점별 결과 ('+state.balls.length+')</summary><div class="ball-results-inner">'+(series.length?'<table><thead><tr><th>공</th><th>초기 손실</th><th>최종 손실</th><th>상태</th></tr></thead><tbody data-ball-result-rows>'+renderBallRows()+'</tbody></table>':'<p class="ball-empty-result">지형을 클릭하면 공을 추가할 수 있습니다.</p>')+'</div></details>';}
+function syncBallUI(){
+  if(!multiBallMode())return;
+  const count=$('[data-ball-count]');if(count)count.textContent='공 '+state.balls.length+'/'+MAX_BALLS;
+  const summary=$('.ball-results summary');if(summary)summary.textContent='시작점별 결과 ('+state.balls.length+')';
+  const body=$('.ball-results-inner');if(body)body.innerHTML=series.length?'<table><thead><tr><th>공</th><th>초기 손실</th><th>최종 손실</th><th>상태</th></tr></thead><tbody data-ball-result-rows>'+renderBallRows()+'</tbody></table>':'<p class="ball-empty-result">지형을 클릭하면 공을 추가할 수 있습니다.</p>';
+  const play=$('[data-play]');if(play)play.disabled=series.length===0;
+}
+function selectBall(id){if(!multiBallMode())return;state.selectedBallId=id;const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.setSelectedBall(id);updateMetrics();}
+function commitBalls(){
+  recompute();
+  const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.selectedBallId=state.selectedBallId;
+  redraw();syncBallUI();
+}
+function addBall(pt){
+  if(!multiBallMode()||state.balls.length>=MAX_BALLS)return;
+  const r=getLandscape(state.landscape).range;
+  if(!pt||!Number.isFinite(pt.x)||!Number.isFinite(pt.y)||Math.abs(pt.x)>r||Math.abs(pt.y)>r)return;
+  const id=Array.from({length:MAX_BALLS},(_,i)=>i+1).find(n=>!state.balls.some(b=>b.id===n));
+  if(id==null)return;state.balls.push({id,x:pt.x,y:pt.y});state.selectedBallId=id;commitBalls();
+}
+function moveBall(id,pt){
+  if(!multiBallMode()||!pt||!Number.isFinite(pt.x)||!Number.isFinite(pt.y))return;
+  const ball=state.balls.find(b=>b.id===id),r=getLandscape(state.landscape).range;if(!ball)return;
+  ball.x=Math.max(-r,Math.min(r,pt.x));ball.y=Math.max(-r,Math.min(r,pt.y));state.selectedBallId=id;commitBalls();
+}
+function deleteBall(id){
+  if(!multiBallMode()||!state.balls.some(b=>b.id===id))return;
+  state.balls=state.balls.filter(b=>b.id!==id);
+  if(state.selectedBallId===id)state.selectedBallId=null;
+  commitBalls();
+}
+function remapBalls(field){
+  if(state.balls.length===1)state.balls=[{id:state.balls[0].id,...field.start}];
+  else state.balls=state.balls.map(b=>({id:b.id,x:Math.max(-field.range,Math.min(field.range,b.x)),y:Math.max(-field.range,Math.min(field.range,b.y))}));
+  state.selectedBallId=null;
+}
 function recompute(){
   const field=getLandscape(state.landscape);
-  series=(state.page==='compare'?state.compare:[state.optimizer]).map(id=>{
+  if(multiBallMode())series=state.balls.map(ball=>({...simulate(state.optimizer,field,{x:ball.x,y:ball.y},getOptions()),ballId:ball.id,color:BALL_COLORS[ball.id-1],name:'공 '+ball.id}));
+  else series=(state.page==='compare'?state.compare:[state.optimizer]).map(id=>{
     const algo=getOptimizer(id),lr=state.page==='compare'?Math.min(algo.defaults.lr,['sgd','momentum','nesterov'].includes(id)?Math.max(0.008,field.lr):Infinity):state.lr;
     return {...simulate(id,field,state.start,getOptions({lr})),color:state.page==='compare'?COMPARE_COLORS[state.compare.indexOf(id)%MAX_COMPARE]:algo.color,name:algo.name};
   });
