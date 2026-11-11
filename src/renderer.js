@@ -157,10 +157,10 @@ export class SurfaceRenderer{
       const entry=series[n],points=entry.history||[],col=entry.color||'#ed8731';if(!points.length)continue;
       const t=Math.max(0,Math.min(step,points.length-1)),whole=Math.floor(t),frac=t-whole;
       const now=this.dragPreview?.id===entry.ballId?this.dragPreview.point:this.positionAt(entry,step);
-      g.save();const lineWidth=this.catalogPreview?3.5:this.preview?2.9:3.5;g.lineJoin='round';g.lineCap='round';g.globalAlpha=this.multiBall&&this.selectedBallId!=null&&entry.ballId!==this.selectedBallId?.34:1;g.beginPath();
+      g.save();const lineWidth=this.catalogPreview?3.5:this.preview?2.9:3.5;g.lineJoin='round';g.lineCap='round';g.globalAlpha=this.multiBall&&this.selectedBallId!=null&&entry.ballId!==this.selectedBallId?0.34:1;g.beginPath();
       const trace=(from,to)=>{const distance=Math.hypot(to.x-from.x,to.y-from.y),segments=this.mode==='3d'?Math.min(28,Math.max(1,Math.ceil(distance/(this.field.range*.055)))):1;for(let k=1;k<=segments;k++){const u=k/segments,p=this.toScreen({x:interpolate(from.x,to.x,u),y:interpolate(from.y,to.y,u)});g.lineTo(p.x,p.y);}};
       const start=this.toScreen(points[0]);g.moveTo(start.x,start.y);
-      if(this.dragPreview?.id!==entry.ballId){for(let j=1;j<=whole;j++)trace(points[j-1],points[j]);if(frac>0)trace(points[whole],now);}
+      if(!(this.dragPreview&&this.dragPreview.id===entry.ballId)){for(let j=1;j<=whole;j++)trace(points[j-1],points[j]);if(frac>0)trace(points[whole],now);}
       g.strokeStyle='rgba(12,26,42,.82)';g.lineWidth=lineWidth+3.3;g.shadowBlur=0;g.stroke();g.strokeStyle=col;g.lineWidth=lineWidth;g.shadowColor=col;g.shadowBlur=this.preview?1:4;g.stroke();g.shadowBlur=0;
       if(this.showVectors&&!this.preview&&(!this.multiBall||this.selectedBallId==null||this.selectedBallId===entry.ballId)){
         const gradVec=gradient(this.field.fn,now.x,now.y),mag=Math.hypot(...gradVec);
