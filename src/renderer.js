@@ -10,7 +10,7 @@ export class SurfaceRenderer{
     this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.showVectors=false;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
     this.yaw=0.68;this.pitch=0.73;this.zoom=1;
     this.onPlace=opts.onPlace;this.multiBall=opts.multiBall||null;this.selectedBallId=null;this.dragBallId=null;this.dragPreview=null;this.deleteMarker=null;this.lastTouchTime=0;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
-    this.range=sampleRange(this.field,this.preview?32:64);this.cache=null;this.meshSamples=null;this.triangles=[];this.visible=true;this.pendingDraw=0;
+    this.range=sampleRange(this.field,this.preview?32:64);this.cache=null;this.meshSamples=null;this.triangles=[];this.depthGrid=null;this.visible=true;this.pendingDraw=0;
     this.handleDown=e=>this.pointerDown(e);this.handleMove=e=>this.pointerMove(e);this.handleUp=e=>this.pointerUp(e);this.handleCancel=e=>this.pointerCancel(e);this.handleContext=e=>this.contextMenu(e);
     this.handleWheel=e=>{if(!this.preview){e.preventDefault();this.zoom=Math.max(0.6,Math.min(2.3,this.zoom*(e.deltaY>0?0.91:1.09)));this.invalidate();this.draw();}};
     this.canvas.addEventListener('pointerdown',this.handleDown);this.canvas.addEventListener('pointermove',this.handleMove);this.canvas.addEventListener('pointerup',this.handleUp);this.canvas.addEventListener('pointercancel',this.handleCancel);this.canvas.addEventListener('contextmenu',this.handleContext);this.canvas.addEventListener('wheel',this.handleWheel,{passive:false});
@@ -30,7 +30,7 @@ export class SurfaceRenderer{
   setVectors(visible){this.showVectors=!!visible;this.draw();}
   setSelectedBall(id){this.selectedBallId=id??null;this.draw();}
   setFrame(series,step){this.drawData=series||[];this.current=step||0;this.draw();}
-  invalidate(){this.cache=null;}
+  invalidate(){this.cache=null;this.depthGrid=null;}
   setPreviewPath(history){if(!this.catalogPreview)return;this.previewPath=history;this.previewFocus=previewCamera(history,this.w,this.h);this.invalidate();this.draw();}
   heightAt(x,y){const t=(this.field.fn(x,y)-this.range.min)/(this.range.max-this.range.min||1);return Math.max(-0.4,Math.min(1.6,t));}
   map2D(x,y){if(this.catalogPreview&&this.previewFocus){const c=this.previewFocus;return {x:this.w/2+(x-c.x)*c.scale,y:this.h/2-(y-c.y)*c.scale};}const r=this.field.range;const pad=this.preview?6:30;const s=Math.min((this.w-2*pad)/(2*r),(this.h-2*pad)/(2*r))*this.zoom;return {x:this.w/2+x*s,y:this.h/2-y*s};}
@@ -104,6 +104,26 @@ export class SurfaceRenderer{
     if(this.pendingDraw)return;
     this.pendingDraw=requestAnimationFrame(()=>{this.pendingDraw=0;this.draw();});
   }
+  buildDepthGrid(){
+    const step=3,columns=Math.ceil(this.w/step),rows=Math.ceil(this.h/step),depth=new Float32Array(columns*rows);depth.fill(-Infinity);
+    for(const [a,b,c] of this.triangles){
+      const det=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);
+      if(Math.abs(det)<1e-8)continue;
+      const minX=Math.max(0,Math.floor(Math.min(a.x,b.x,c.x)/step)),maxX=Math.min(columns-1,Math.ceil(Math.max(a.x,b.x,c.x)/step)),minY=Math.max(0,Math.floor(Math.min(a.y,b.y,c.y)/step)),maxY=Math.min(rows-1,Math.ceil(Math.max(a.y,b.y,c.y)/step));
+      for(let j=minY;j<=maxY;j++)for(let i=minX;i<=maxX;i++){
+        const x=(i+.5)*step,y=(j+.5)*step,u=((b.y-c.y)*(x-c.x)+(c.x-b.x)*(y-c.y))/det,v=((c.y-a.y)*(x-c.x)+(a.x-c.x)*(y-c.y))/det,w=1-u-v;
+        if(u<-.04||v<-.04||w<-.04)continue;
+        const z=u*a.depth+v*b.depth+w*c.depth,idx=j*columns+i;if(z>depth[idx])depth[idx]=z;
+      }
+    }
+    this.depthGrid={step,columns,rows,depth};
+  }
+  isOccluded(point,screen){
+    if(this.mode!=='3d'||!this.multiBall||!this.depthGrid)return false;
+    const p=screen||this.toScreen(point),info=this.depthGrid,i=Math.floor(p.x/info.step),j=Math.floor(p.y/info.step);
+    if(i<0||j<0||i>=info.columns||j>=info.rows)return false;
+    return info.depth[j*info.columns+i]>p.depth+.075;
+  }
   draw3D(g){
     const N=this.preview?36:76,r=this.field.range;
     const vertices=this.surfaceMesh(N).map(row=>row.map(p=>({...this.project(p.x,p.y,p.z),wx:p.x,wy:p.y,z:p.z})));
@@ -120,6 +140,7 @@ export class SurfaceRenderer{
       this.triangles.push([a,b,c],[a,c,d]);
     }
     cells.sort((a,b)=>a.depth-b.depth);
+    if(this.multiBall)this.buildDepthGrid();
     g.lineJoin='round';
     for(const cell of cells){
       g.beginPath();g.moveTo(cell.v[0].x,cell.v[0].y);for(let i=1;i<4;i++)g.lineTo(cell.v[i].x,cell.v[i].y);g.closePath();
@@ -137,7 +158,7 @@ export class SurfaceRenderer{
   ballAt(cx,cy){
     if(!this.multiBall)return null;
     let best=null;
-    for(const entry of this.drawData){if(entry.ballId==null)continue;const p=this.dragPreview?.id===entry.ballId?this.dragPreview.point:this.positionAt(entry);if(!p)continue;const screen=this.toScreen(p),distance=Math.hypot(screen.x-cx,screen.y-cy);if(distance<=16&&(!best||distance<best.distance))best={id:entry.ballId,distance};}
+    for(const entry of this.drawData){if(entry.ballId==null)continue;const p=this.dragPreview?.id===entry.ballId?this.dragPreview.point:this.positionAt(entry);if(!p)continue;const screen=this.toScreen(p),distance=Math.hypot(screen.x-cx,screen.y-cy);if(this.isOccluded(p,screen))continue;if(distance<=16&&(!best||distance<best.distance))best={id:entry.ballId,distance};}
     return best;
   }
   contextMenu(e){
@@ -158,8 +179,9 @@ export class SurfaceRenderer{
       const t=Math.max(0,Math.min(step,points.length-1)),whole=Math.floor(t),frac=t-whole;
       const now=this.dragPreview&&this.dragPreview.id===entry.ballId?this.dragPreview.point:this.positionAt(entry,step);
       g.save();const lineWidth=this.catalogPreview?3.5:this.preview?2.9:3.5;g.lineJoin='round';g.lineCap='round';g.globalAlpha=this.multiBall&&this.selectedBallId!=null&&entry.ballId!==this.selectedBallId?0.34:1;g.beginPath();
-      const trace=(from,to)=>{const distance=Math.hypot(to.x-from.x,to.y-from.y),segments=this.mode==='3d'?Math.min(28,Math.max(1,Math.ceil(distance/(this.field.range*.055)))):1;for(let k=1;k<=segments;k++){const u=k/segments,p=this.toScreen({x:interpolate(from.x,to.x,u),y:interpolate(from.y,to.y,u)});g.lineTo(p.x,p.y);}};
-      const start=this.toScreen(points[0]);g.moveTo(start.x,start.y);
+      let connected=false;const append=world=>{const p=this.toScreen(world);if(this.isOccluded(world,p)){connected=false;return;}if(connected)g.lineTo(p.x,p.y);else g.moveTo(p.x,p.y);connected=true;};
+      const trace=(from,to)=>{const distance=Math.hypot(to.x-from.x,to.y-from.y),segments=this.mode==='3d'?Math.min(28,Math.max(1,Math.ceil(distance/(this.field.range*.055)))):1;for(let k=1;k<=segments;k++){const u=k/segments;append({x:interpolate(from.x,to.x,u),y:interpolate(from.y,to.y,u)});}};
+      append(points[0]);
       if(!(this.dragPreview&&this.dragPreview.id===entry.ballId)){for(let j=1;j<=whole;j++)trace(points[j-1],points[j]);if(frac>0)trace(points[whole],now);}
       g.strokeStyle='rgba(12,26,42,.82)';g.lineWidth=lineWidth+3.3;g.shadowBlur=0;g.stroke();g.strokeStyle=col;g.lineWidth=lineWidth;g.shadowColor=col;g.shadowBlur=this.preview?1:4;g.stroke();g.shadowBlur=0;
       if(this.showVectors&&!this.preview&&(!this.multiBall||this.selectedBallId==null||this.selectedBallId===entry.ballId)){
@@ -177,7 +199,7 @@ export class SurfaceRenderer{
         if(mag>1e-9)arrow([-gradVec[0],-gradVec[1]],this.field.range*.23,'#378ada');
         if(umag>1e-9)arrow(update,this.field.range*.23,'#ea9237');
       }
-      const p=this.toScreen(now);const radius=this.catalogPreview?7:this.preview?5.6:7.8;
+      const p=this.toScreen(now);if(this.isOccluded(now,p)){g.restore();continue;}const radius=this.catalogPreview?7:this.preview?5.6:7.8;
       if(this.multiBall&&entry.ballId===this.selectedBallId){g.beginPath();g.arc(p.x,p.y,radius+5,0,Math.PI*2);g.strokeStyle='#162638';g.lineWidth=2;g.setLineDash([3,3]);g.stroke();g.setLineDash([]);}
       const grad=g.createRadialGradient(p.x-radius*.32,p.y-radius*.36,0,p.x,p.y,radius*1.22);
       grad.addColorStop(0,'#ffffff');grad.addColorStop(.16,col);grad.addColorStop(1,'#1e293b');
