@@ -9,7 +9,7 @@ export class SurfaceRenderer{
     this.canvas=canvas;this.ctx=canvas.getContext('2d',{alpha:false});
     this.mode=opts.mode||'2d';this.field=opts.field;this.preview=!!opts.preview;this.showVectors=false;this.catalogPreview=opts.previewKind==='catalog';this.previewFocus=null;this.previewPath=null;
     this.yaw=0.68;this.pitch=0.73;this.zoom=1;
-    this.onPlace=opts.onPlace;this.multiBall=opts.multiBall||null;this.selectedBallId=null;this.dragBallId=null;this.dragPreview=null;this.deleteMarker=null;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
+    this.onPlace=opts.onPlace;this.multiBall=opts.multiBall||null;this.selectedBallId=null;this.dragBallId=null;this.dragPreview=null;this.deleteMarker=null;this.lastTouchTime=0;this.dragging=false;this.dragMoved=false;this.drawData=[];this.current=0;
     this.range=sampleRange(this.field,this.preview?32:64);this.cache=null;this.meshSamples=null;this.triangles=[];this.visible=true;this.pendingDraw=0;
     this.handleDown=e=>this.pointerDown(e);this.handleMove=e=>this.pointerMove(e);this.handleUp=e=>this.pointerUp(e);this.handleCancel=e=>this.pointerCancel(e);this.handleContext=e=>this.contextMenu(e);
     this.handleWheel=e=>{if(!this.preview){e.preventDefault();this.zoom=Math.max(0.6,Math.min(2.3,this.zoom*(e.deltaY>0?0.91:1.09)));this.invalidate();this.draw();}};
@@ -143,7 +143,7 @@ export class SurfaceRenderer{
   contextMenu(e){
     if(!this.multiBall)return;
     const rect=this.canvas.getBoundingClientRect(),hit=this.ballAt(e.clientX-rect.left,e.clientY-rect.top);
-    if(hit){e.preventDefault();this.multiBall.onDelete(hit.id);}
+    if(hit){e.preventDefault();if(e.pointerType==='touch'||Date.now()-this.lastTouchTime<1000){this.selectedBallId=hit.id;this.multiBall.onSelect(hit.id);}else this.multiBall.onDelete(hit.id);}
   }
   deleteBubble(point){
     return {x:Math.max(13,Math.min(this.w-13,point.x+19)),y:Math.max(13,Math.min(this.h-13,point.y-19))};
@@ -209,6 +209,7 @@ export class SurfaceRenderer{
   }
   pointerDown(e){
     if(this.preview||(!this.onPlace&&!this.multiBall)||e.button>0)return;
+    if(e.pointerType==='touch')this.lastTouchTime=Date.now();
     const rect=this.canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
     if(this.multiBall&&this.deleteMarker&&Math.hypot(x-this.deleteMarker.x,y-this.deleteMarker.y)<=13){this.multiBall.onDelete(this.deleteMarker.id);return;}
     this.dragging=true;this.dragMoved=false;this.dragBallId=null;this.dragPreview=null;this.pointerX=e.clientX;this.pointerY=e.clientY;this.downX=e.clientX;this.downY=e.clientY;
