@@ -236,12 +236,13 @@ function updateSetting(k,v){
     draft.landscape=field.id;
     state.landscape=field.id;
     state.start={...field.start};
+    if(multiBallMode())remapBalls(field);
     recompute();
     const rec=renderers.find(r=>!r.preview);
-    if(rec){rec.renderer.setField(field);rec.renderer.setFrame(series,0);}
+    if(rec){rec.renderer.setField(field);rec.renderer.selectedBallId=multiBallMode()?state.selectedBallId:null;rec.renderer.setFrame(series,0);}
     const title=$('.visual-landscape');if(title)title.textContent=field.name;
     const legend=$('#legend');if(legend&&!legend.hidden)legend.innerHTML=series.map(s=>'<span class="legend-item"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</span>').join('');
-    redraw();syncSettingsForm();return;
+    redraw();syncBallUI();syncSettingsForm();return;
   }
   if(k==='lr')draft.lr=10**Number(v);
   else if(k==='momentum'){draft.momentum=Number(v);draft.beta1=draft.momentum;}
@@ -262,7 +263,7 @@ function applySettings(){
   const changed=SETTINGS_KEYS.some(k=>state[k]!==draft[k]);
   for(const key of SETTINGS_KEYS)state[key]=draft[key];
   state.settingsDraft=null;state.settingsOpen=false;
-  if(previousLandscape!==state.landscape)state.start={...getLandscape(state.landscape).start};
+  if(previousLandscape!==state.landscape){const field=getLandscape(state.landscape);state.start={...field.start};if(multiBallMode())remapBalls(field);}
   if(changed)render();
   else setSettingsOpen(false);
 }
@@ -313,12 +314,12 @@ document.addEventListener('click',e=>{
   if(b.hasAttribute('data-settings-apply')){applySettings();return;}
   if(b.hasAttribute('data-fullscreen')){const area=b.closest('.canvas-wrap');if(!document.fullscreenElement){area?.requestFullscreen?.();}else{document.exitFullscreen?.();}return;}
   if(b.hasAttribute('data-vectors')){state.vectors=!state.vectors;const rec=renderers.find(x=>!x.preview);if(rec)rec.renderer.setVectors(state.vectors);b.textContent='벡터'+(state.vectors?' ✓':'');b.classList.toggle('selected',state.vectors);b.setAttribute('aria-pressed',String(state.vectors));return;}
-  if(b.dataset.mode){state.mode=b.dataset.mode;const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.setMode(state.mode);for(const btn of document.querySelectorAll('[data-mode]'))btn.classList.toggle('active',btn.dataset.mode===state.mode);if(rec)rec.canvas.title=state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대';return;}
-  if(b.hasAttribute('data-play')){if(state.position>=maxStep())state.position=0;state.playing=!state.playing;redraw();return;}
+  if(b.dataset.mode){state.mode=b.dataset.mode;const rec=renderers.find(r=>!r.preview);if(rec)rec.renderer.setMode(state.mode);for(const btn of document.querySelectorAll('[data-mode]'))btn.classList.toggle('active',btn.dataset.mode===state.mode);if(rec)rec.canvas.title=multiBallMode()?'빈 곳 클릭: 공 추가 · 공 드래그: 이동 · 공 우클릭: 삭제 · 빈 곳 드래그: 회전':state.mode==='3d'?'클릭: 시작점 · 드래그: 회전 · 휠: 확대':'클릭: 시작점 · 휠: 확대';return;}
+  if(b.hasAttribute('data-play')){if(multiBallMode()&&!series.length)return;if(state.position>=maxStep())state.position=0;state.playing=!state.playing;redraw();return;}
   if(b.hasAttribute('data-reset')){state.playing=false;state.position=0;redraw();return;}
   if(b.hasAttribute('data-next')){state.playing=false;state.position=Math.min(maxStep(),Math.floor(state.position)+1);redraw();return;}
   if(b.hasAttribute('data-prev')){state.playing=false;state.position=Math.max(0,Math.floor(state.position)-1);redraw();return;}
-  if(b.hasAttribute('data-place-default')){state.start={...getLandscape(state.landscape).start};recompute();redraw();return;}
+  if(b.hasAttribute('data-place-default')){state.start={...getLandscape(state.landscape).start};if(multiBallMode())remapBalls(getLandscape(state.landscape));recompute();redraw();syncBallUI();return;}
   if(b.dataset.camera){const rec=renderers.find(r=>!r.preview);if(rec){rec.renderer.yaw=.68;rec.renderer.pitch=.73;rec.renderer.zoom=1;rec.renderer.invalidate();rec.renderer.draw();}return;}
   if(b.dataset.filter){state.filter=b.dataset.filter;render();return;}
   if(b.hasAttribute('data-compare-cancel')){cancelCompareDraft();return;}
@@ -338,13 +339,16 @@ document.addEventListener('change',e=>{const t=e.target;if(t.matches('select[dat
 window.addEventListener('keydown',e=>{
   if(e.code==='Space'&&!['INPUT','SELECT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName)&&(state.page==='experiment'||state.page==='detail'||state.page==='compare')){e.preventDefault();state.playing=!state.playing;redraw();}
   if(e.code==='Escape'&&state.settingsOpen){setSettingsOpen(false);return;}
-  if(e.code==='Escape'&&state.mobile){state.mobile=false;render();}
+  if(e.code==='Escape'&&state.mobile){state.mobile=false;render();return;}
+  if(e.code==='Escape'&&multiBallMode()&&state.selectedBallId!=null){selectBall(null);return;}
+  if((e.code==='Delete'||e.code==='Backspace')&&multiBallMode()&&state.selectedBallId!=null&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){e.preventDefault();deleteBall(state.selectedBallId);}
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden){state.playing=false;}lastTime=0;});
 function tick(now){
   const dt=lastTime?Math.min(.1,(now-lastTime)/1000):0;lastTime=now;
   if(!document.hidden){
     if(state.playing){
+      if(multiBallMode()&&!series.length)state.playing=false;
       state.position=Math.min(maxStep(),state.position+dt*state.speed);
       if(state.position>=maxStep())state.playing=false;
       redraw();
